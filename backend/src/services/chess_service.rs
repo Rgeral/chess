@@ -1,4 +1,4 @@
-use chess::{Board, ChessMove, Color, MoveGen};
+use chess::{Board, ChessMove, Color, MoveGen, Square, Piece};
 use std::str::FromStr;
 
 /// Service responsible for chess game logic and move validation
@@ -34,17 +34,44 @@ impl ChessService {
     /// 
     /// # Returns
     /// Result<String, String> - New FEN position or error message
-    pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
+pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
         let mut board = Board::from_str(fen).map_err(|e| format!("Invalid FEN: {}", e))?;
         
-        let chess_move = ChessMove::from_str(move_str)
-            .map_err(|e| format!("Invalid move format: {}", e))?;
+        println!("🎯 Processing move: {}", move_str);
+        
+        // Parse the move - handle promotion
+        let chess_move = if move_str.len() == 5 {
+            // Promotion move (e.g., "e7e8q")
+            let from_square = Square::from_str(&move_str[0..2])
+                .map_err(|_| format!("Invalid source square: {}", &move_str[0..2]))?;
+            let to_square = Square::from_str(&move_str[2..4])
+                .map_err(|_| format!("Invalid target square: {}", &move_str[2..4]))?;
+            
+            let promotion_char = move_str.chars().nth(4).unwrap();
+            let promotion_piece = match promotion_char {
+                'q' => Some(Piece::Queen),
+                'r' => Some(Piece::Rook),
+                'b' => Some(Piece::Bishop),
+                'n' => Some(Piece::Knight),
+                _ => return Err(format!("Invalid promotion piece: {}", promotion_char))
+            };
+            
+            println!("🎯 Promotion detected: {} to {} promoting to {:?}", 
+                     from_square, to_square, promotion_piece);
+            
+            ChessMove::new(from_square, to_square, promotion_piece)
+        } else {
+            // Regular move (e.g., "e2e4")
+            ChessMove::from_str(move_str)
+                .map_err(|e| format!("Invalid move format: {}", e))?
+        };
         
         if !board.legal(chess_move) {
-            return Err("Illegal move".to_string());
+            return Err(format!("Illegal move: {}", move_str));
         }
         
         board = board.make_move_new(chess_move);
+        println!("✅ Move applied successfully");
         Ok(board.to_string())
     }
 

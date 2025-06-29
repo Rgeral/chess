@@ -1,9 +1,10 @@
 <script lang="ts">
     import { gameStore, gameActions } from '$lib/stores/gameStore';
     import { ChessService } from '$lib/services/chessService';
-    import type { ChessSquare } from '$lib/types/chess';
+    import PromotionDialog from './PromotionDialog.svelte';
+    import type { ChessSquare, PromotionChoice } from '$lib/types/chess';
 
-    export let onMove: (from: string, to: string) => void;
+    export let onMove: (from: string, to: string, promotion?: string) => void;
 
     $: board = $gameStore.currentGame ? ChessService.parseFEN($gameStore.currentGame.fen) : [];
     $: selectedSquare = $gameStore.selectedSquare;
@@ -12,7 +13,9 @@
     let draggedPiece: ChessSquare | null = null;
     let draggedFrom: string | null = null;
 
-    // ...existing drag handlers...
+    /**
+     * Handles drag start events
+     */
     function handleDragStart(event: DragEvent, square: ChessSquare) {
         if (!square.piece || square.piece.color !== 'white') {
             event.preventDefault();
@@ -30,6 +33,9 @@
         }
     }
 
+    /**
+     * Handles drag over events
+     */
     function handleDragOver(event: DragEvent) {
         event.preventDefault();
         if (event.dataTransfer) {
@@ -37,10 +43,16 @@
         }
     }
 
+    /**
+     * Handles drop events
+     */
     function handleDrop(event: DragEvent, square: ChessSquare) {
         event.preventDefault();
         
-        if (!draggedFrom || !draggedPiece) return;
+        if (!draggedFrom || !draggedPiece) {
+            resetDragState();
+            return;
+        }
 
         const targetSquare = `${square.file}${square.rank}`;
         
@@ -50,12 +62,20 @@
         }
 
         if (possibleMoves.includes(targetSquare)) {
-            onMove(draggedFrom, targetSquare);
+            // Check for pawn promotion
+            if (isPawnPromotion(draggedFrom, targetSquare, board)) {
+                gameActions.setPendingPromotion(draggedFrom, targetSquare);
+            } else {
+                onMove(draggedFrom, targetSquare);
+            }
         }
 
         resetDragState();
     }
 
+    /**
+     * Handles square clicks with promotion detection
+     */
     function handleSquareClick(square: ChessSquare) {
         const squareNotation = `${square.file}${square.rank}`;
 
@@ -63,81 +83,80 @@
             gameActions.selectSquare(null);
             gameActions.setPossibleMoves([]);
         } else if (selectedSquare && possibleMoves.includes(squareNotation)) {
-            onMove(selectedSquare, squareNotation);
-            gameActions.selectSquare(null);
-            gameActions.setPossibleMoves([]);
+            // Check for pawn promotion
+            if (isPawnPromotion(selectedSquare, squareNotation, board)) {
+                gameActions.setPendingPromotion(selectedSquare, squareNotation);
+            } else {
+                onMove(selectedSquare, squareNotation);
+                gameActions.selectSquare(null);
+                gameActions.setPossibleMoves([]);
+            }
         } else if (square.piece?.color === 'white') {
             gameActions.selectSquare(squareNotation);
             generatePossibleMoves(square);
         }
     }
 
+    /**
+     * Checks if a move is a pawn promotion
+     */
+    function isPawnPromotion(from: string, to: string, board: ChessSquare[][]): boolean {
+        const fromSquare = getSquareFromNotation(from, board);
+        const toRank = parseInt(to[1]);
+        
+        return fromSquare?.piece?.type === 'pawn' && 
+               fromSquare?.piece?.color === 'white' && 
+               toRank === 8;
+    }
+
+    /**
+     * Gets square object from notation
+     */
+    function getSquareFromNotation(notation: string, board: ChessSquare[][]): ChessSquare | null {
+        const file = notation[0];
+        const rank = parseInt(notation[1]);
+        
+        for (const row of board) {
+            for (const square of row) {
+                if (square.file === file && square.rank === rank) {
+                    return square;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Handles pawn promotion choice
+     */
+    function handlePromotion(event: CustomEvent<PromotionChoice>) {
+        const { from, to, piece } = event.detail;
+        onMove(from, to, piece);
+        gameActions.clearPendingPromotion();
+        gameActions.selectSquare(null);
+        gameActions.setPossibleMoves([]);
+    }
+
+    /**
+     * Handles promotion cancellation
+     */
+    function handlePromotionCancel() {
+        gameActions.clearPendingPromotion();
+        gameActions.selectSquare(null);
+        gameActions.setPossibleMoves([]);
+    }
+
+    /**
+     * Generates possible moves for a piece
+     */
     function generatePossibleMoves(square: ChessSquare) {
         const moves = getRealMoves(square);
         gameActions.setPossibleMoves(moves);
     }
 
-    // Helper function to get square at position
-    function getSquareAt(file: string, rank: number): ChessSquare | null {
-        if (rank < 1 || rank > 8) return null;
-        const fileNum = file.charCodeAt(0) - 97;
-        if (fileNum < 0 || fileNum > 7) return null;
-        
-        return board[8 - rank]?.[fileNum] || null;
-    }
-
-    function isSquareEmpty(file: string, rank: number): boolean {
-        const square = getSquareAt(file, rank);
-        return square ? !square.piece : false;
-    }
-
-    function hasEnemyPiece(file: string, rank: number): boolean {
-        const square = getSquareAt(file, rank);
-        return square ? (square.piece?.color === 'black') : false;
-    }
-
-    function hasOurPiece(file: string, rank: number): boolean {
-        const square = getSquareAt(file, rank);
-        return square ? (square.piece?.color === 'white') : false;
-    }
-
-    // Check if king or rook has moved (simplified - in real game, track this in backend)
-    function hasKingMoved(): boolean {
-        // Check if king is on starting square
-        const king = getSquareAt('e', 1);
-        return !king?.piece || king.piece.type !== 'king';
-    }
-
-    function hasRookMoved(file: string): boolean {
-        // Check if rook is on starting square
-        const rook = getSquareAt(file, 1);
-        return !rook?.piece || rook.piece.type !== 'rook';
-    }
-
-    function canCastle(kingside: boolean): boolean {
-        if (hasKingMoved()) return false;
-
-        if (kingside) {
-            // Kingside castling (O-O)
-            if (hasRookMoved('h')) return false;
-            
-            // Check squares between king and rook are empty
-            if (!isSquareEmpty('f', 1) || !isSquareEmpty('g', 1)) return false;
-            
-            // TODO: Check king not in check and doesn't move through check
-            return true;
-        } else {
-            // Queenside castling (O-O-O)
-            if (hasRookMoved('a')) return false;
-            
-            // Check squares between king and rook are empty
-            if (!isSquareEmpty('b', 1) || !isSquareEmpty('c', 1) || !isSquareEmpty('d', 1)) return false;
-            
-            // TODO: Check king not in check and doesn't move through check
-            return true;
-        }
-    }
-
+    /**
+     * Calculates all possible moves for a piece
+     */
     function getRealMoves(square: ChessSquare): string[] {
         const moves: string[] = [];
         const { file, rank, piece } = square;
@@ -166,7 +185,7 @@
                     moves.push(`${String.fromCharCode(98 + fileNum)}${rank + 1}`);
                 }
                 break;
-                
+
             case 'rook':
                 moves.push(...getRookMoves(file, rank, fileNum));
                 break;
@@ -232,7 +251,9 @@
         return moves;
     }
 
-    // Complete Rook moves function
+    /**
+     * Gets rook moves
+     */
     function getRookMoves(file: string, rank: number, fileNum: number): string[] {
         const moves: string[] = [];
         
@@ -289,7 +310,9 @@
         return moves;
     }
 
-    // Complete Bishop moves function
+    /**
+     * Gets bishop moves
+     */
     function getBishopMoves(file: string, rank: number, fileNum: number): string[] {
         const moves: string[] = [];
         
@@ -360,6 +383,9 @@
         return moves;
     }
 
+    /**
+     * Resets drag state
+     */
     function resetDragState() {
         draggedPiece = null;
         draggedFrom = null;
@@ -367,19 +393,72 @@
         gameActions.setPossibleMoves([]);
     }
 
-    function getPieceSymbol(piece: ChessSquare['piece']): string {
-        if (!piece) return '';
+    /**
+     * Helper function to get square at position
+     */
+    function getSquareAt(file: string, rank: number): ChessSquare | null {
+        if (rank < 1 || rank > 8) return null;
+        const fileNum = file.charCodeAt(0) - 97;
+        if (fileNum < 0 || fileNum > 7) return null;
         
-        const symbols = {
-            white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
-            black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
-        };
-        
-        return symbols[piece.color][piece.type];
+        return board[8 - rank]?.[fileNum] || null;
     }
 
+    /**
+     * Checks if square is empty
+     */
+    function isSquareEmpty(file: string, rank: number): boolean {
+        const square = getSquareAt(file, rank);
+        return square ? !square.piece : false;
+    }
+
+    /**
+     * Checks if square has enemy piece
+     */
+    function hasEnemyPiece(file: string, rank: number): boolean {
+        const square = getSquareAt(file, rank);
+        return square?.piece?.color === 'black';
+    }
+
+    /**
+     * Checks if castling is possible
+     */
+    function canCastle(kingside: boolean): boolean {
+        // Simplified castling check - in real game, need to check:
+        // - King hasn't moved
+        // - Rook hasn't moved  
+        // - No pieces between king and rook
+        // - King not in check
+        // - King doesn't pass through check
+        return false; // Disabled for now
+    }
+
+    /**
+     * Gets piece symbol for display
+     */
+    function getPieceSymbol(square: ChessSquare): string {
+        if (!square.piece) return '';
+        
+        const { type, color } = square.piece;
+        const symbols = {
+            white: {
+                king: '♔', queen: '♕', rook: '♖',
+                bishop: '♗', knight: '♘', pawn: '♙'
+            },
+            black: {
+                king: '♚', queen: '♛', rook: '♜',
+                bishop: '♝', knight: '♞', pawn: '♟'
+            }
+        };
+        
+        return symbols[color][type] || '';
+    }
+
+    /**
+     * Gets CSS classes for a square
+     */
     function getSquareClass(square: ChessSquare): string {
-        const isLight = (square.file.charCodeAt(0) - 97 + square.rank) % 2 === 1;
+        const isLight = (square.file.charCodeAt(0) - 97 + square.rank) % 2 === 0;
         const squareNotation = `${square.file}${square.rank}`;
         const isSelected = selectedSquare === squareNotation;
         const isPossibleMove = possibleMoves.includes(squareNotation);
@@ -395,7 +474,6 @@
     }
 </script>
 
-<!-- HTML reste identique -->
 <div class="chess-board-container">
     <div class="board-coordinates">
         <div class="rank-labels">
@@ -412,31 +490,25 @@
                         on:click={() => handleSquareClick(square)}
                         on:dragover={handleDragOver}
                         on:drop={(e) => handleDrop(e, square)}
-                        role="button"
-                        tabindex="0"
                     >
                         {#if square.piece}
-                            <div 
-                                class="piece {square.piece.color === 'white' ? 'draggable' : ''}"
+                            <span 
+                                class="piece"
+                                class:draggable={square.piece.color === 'white'}
                                 draggable={square.piece.color === 'white'}
                                 on:dragstart={(e) => handleDragStart(e, square)}
                             >
-                                {getPieceSymbol(square.piece)}
-                            </div>
+                                {getPieceSymbol(square)}
+                            </span>
                         {/if}
                         
-                        <!-- Possible move indicator -->
-                        {#if possibleMoves.includes(`${square.file}${square.rank}`) && !square.piece}
-                            <div class="move-dot"></div>
-                        {/if}
-                        
-                        <!-- Capture indicator -->
-                        {#if possibleMoves.includes(`${square.file}${square.rank}`) && square.piece}
-                            <div class="capture-ring"></div>
-                        {/if}
-                        
-                        <!-- Castling indicator -->
-                        {#if (square.file === 'g' && square.rank === 1) || (square.file === 'c' && square.rank === 1)}
+                        {#if possibleMoves.includes(`${square.file}${square.rank}`)}
+                            {#if !square.piece}
+                                <div class="move-dot"></div>
+                            {:else}
+                                <div class="capture-ring"></div>
+                            {/if}
+                            
                             {#if possibleMoves.includes(`${square.file}${square.rank}`) && selectedSquare === 'e1'}
                                 <div class="castling-indicator">🏰</div>
                             {/if}
@@ -453,6 +525,15 @@
         </div>
     </div>
 </div>
+
+<!-- Promotion Dialog -->
+<PromotionDialog
+    visible={$gameStore.pendingPromotion?.isActive || false}
+    from={$gameStore.pendingPromotion?.from || ''}
+    to={$gameStore.pendingPromotion?.to || ''}
+    on:promote={handlePromotion}
+    on:cancel={handlePromotionCancel}
+/>
 
 <style>
     .chess-board-container {
@@ -476,6 +557,7 @@
         flex-direction: column;
         position: absolute;
         left: -20px;
+        top: 8px;
         height: 480px;
         justify-content: space-around;
         align-items: center;
@@ -602,14 +684,5 @@
 
     .piece:hover {
         transform: scale(1.05);
-    }
-
-    .chess-board > div {
-        animation: fadeIn 0.3s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0.8; }
-        to { opacity: 1; }
     }
 </style>

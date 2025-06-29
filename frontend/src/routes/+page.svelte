@@ -88,12 +88,27 @@
     }
 
     /**
-     * Makes a chess move and processes Stockfish response
+     * Makes a chess move with optional promotion support
+     * @param from - Source square (e.g., "e2")
+     * @param to - Target square (e.g., "e4") 
+     * @param promotion - Optional promotion piece ("queen", "rook", "bishop", "knight")
      */
-    async function makeMove(from, to) {
+    async function makeMove(from, to, promotion = null) {
         if (!$gameStore.currentGame) return;
 
-        const playerMove = `${from}${to}`;
+        // Format move with promotion
+        let playerMove = `${from}${to}`;
+        if (promotion) {
+            const promotionLetters = {
+                'queen': 'q',
+                'rook': 'r', 
+                'bishop': 'b',
+                'knight': 'n'
+            };
+            playerMove += promotionLetters[promotion];
+            console.log('🎯 Pawn promotion:', from, '→', to, 'promoted to', promotion);
+        }
+
         gameActions.setLoading(true);
         gameActions.setError(null);
 
@@ -386,6 +401,13 @@
             </div>
         </div>
     {/if}
+
+    <!-- Promotion Notification -->
+    {#if $gameStore.pendingPromotion?.isActive}
+        <div class="promotion-notification">
+            🎯 Pawn promotion in progress...
+        </div>
+    {/if}
 </main>
 
 <style>
@@ -623,6 +645,31 @@
         color: #28a745;
     }
 
+    /* Promotion Notification */
+    .promotion-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #667eea;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        z-index: 999;
+        animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
     /* Buttons */
     .btn {
         padding: 12px 24px;
@@ -711,5 +758,16 @@
     .error {
         background: #ffebee;
         color: #c62828;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .quick-stats {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .records-grid, .level-stats-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>

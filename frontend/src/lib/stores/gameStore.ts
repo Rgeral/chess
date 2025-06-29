@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Game, User, UserProfile } from '$lib/types/chess';
+import type { Game, PendingPromotion, User, UserProfile } from '$lib/types/chess';
 
 /**
  * Game state interface managing user data, current game, and timer functionality
@@ -10,13 +10,13 @@ interface GameState {
     currentGame: Game | null;
     loading: boolean;
     error: string | null;
-    // Timer state
     gameStartTime: number | null;
     elapsedTime: number;
     gameTimer: number | null;
-    // ChessBoard state (AJOUTER CES LIGNES)
     selectedSquare: string | null;
     possibleMoves: string[];
+    pendingPromotion: PendingPromotion | null;
+
 }
 
 const initialState: GameState = {
@@ -30,7 +30,8 @@ const initialState: GameState = {
     gameTimer: null,
     // AJOUTER CES LIGNES :
     selectedSquare: null,
-    possibleMoves: []
+    possibleMoves: [],
+    pendingPromotion: null
 };
 
 
@@ -55,6 +56,28 @@ export const gameActions = {
      */
     setPossibleMoves: (moves: string[]) => {
         gameStore.update(state => ({ ...state, possibleMoves: moves }));
+    },
+
+    /**
+     * Sets a pending pawn promotion
+     * @param from - Source square
+     * @param to - Target square (8th rank)
+     */
+    setPendingPromotion: (from: string, to: string) => {
+        gameStore.update(state => ({ 
+            ...state, 
+            pendingPromotion: { from, to, isActive: true } 
+        }));
+    },
+
+    /**
+     * Clears pending promotion
+     */
+    clearPendingPromotion: () => {
+        gameStore.update(state => ({ 
+            ...state, 
+            pendingPromotion: null 
+        }));
     },
     
 

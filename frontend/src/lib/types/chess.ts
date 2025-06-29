@@ -70,3 +70,15 @@ export interface ChessSquare {
     rank: number;
     piece: ChessPiece | null;
 }
+
+export interface PromotionChoice {
+    from: string;
+    to: string;
+    piece: 'queen' | 'rook' | 'bishop' | 'knight';
+}
+
+export interface PendingPromotion {
+    from: string;
+    to: string;
+    isActive: boolean;
+}

@@ -6,7 +6,7 @@ import {
     GET_USER_PROFILE, 
     GET_LEADERBOARD 
 } from '$lib/graphql/queries';
-import type { User, Game, UserProfile, GameMoveResult } from '$lib/types/chess';
+import type { User, Game, UserProfile, GameMoveResult, ChessSquare, ChessPiece } from '$lib/types/chess';
 
 /**
  * Chess service for handling all game-related API calls
