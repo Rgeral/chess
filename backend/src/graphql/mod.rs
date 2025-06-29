@@ -1,3 +1,3 @@
 pub mod schema;
 
-pub use schema::create_schema;
+pub use schema::{Query, Mutation, create_schema};
