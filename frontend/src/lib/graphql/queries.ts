@@ -5,7 +5,9 @@ export const CREATE_USER = `
             username
             totalGames
             gamesWon
-            createdAt
+            estimatedElo
+            currentStreak
+            bestStreak
         }
     }
 `;
@@ -18,6 +20,7 @@ export const CREATE_GAME = `
             difficulty
             fen
             status
+            movesCount
             startTime
         }
     }
@@ -29,41 +32,57 @@ export const MAKE_MOVE = `
             game {
                 id
                 fen
-                moves
                 status
-                endTime
+                result
+                movesCount
+                durationSeconds
             }
             stockfishMove
             gameOver
             winner
+            totalTimeSeconds
         }
     }
 `;
 
-export const GET_GAME = `
-    query GetGame($gameId: String!) {
-        game(gameId: $gameId) {
-            id
-            userId
-            difficulty
-            fen
-            moves
-            status
-            startTime
-            endTime
+export const GET_USER_PROFILE = `
+    query GetUserProfile($userId: String!) {
+        getUserProfile(userId: $userId) {
+            user {
+                id
+                username
+                totalGames
+                gamesWon
+                totalPlayTimeSeconds
+                currentStreak
+                bestStreak
+                estimatedElo
+            }
+            records {
+                difficulty
+                bestTimeSeconds
+                movesCount
+                achievedAt
+            }
+            levelStats {
+                difficulty
+                gamesPlayed
+                gamesWon
+                averageTimeSeconds
+                averageMoves
+            }
         }
     }
 `;
 
-export const GET_USER = `
-    query GetUser($username: String!) {
-        user(username: $username) {
-            id
+export const GET_LEADERBOARD = `
+    query GetLeaderboard($limit: Int) {
+        getLeaderboard(limit: $limit) {
             username
+            estimatedElo
             totalGames
             gamesWon
-            gamesLost
-            maxDifficultyBeaten
+            currentStreak
         }
     }
 `;

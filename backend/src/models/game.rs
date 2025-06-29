@@ -1,46 +1,47 @@
+use async_graphql::*;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use sqlx::FromRow;
-use async_graphql::{SimpleObject, InputObject};
+use chrono::{DateTime, Utc};
 
-/// Represents a chess game between user and Stockfish
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow, SimpleObject)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize, SimpleObject)]
 pub struct Game {
     pub id: String,
-    #[sqlx(rename = "user_id")]
     pub user_id: String,
     pub difficulty: i32,
     pub fen: String,
-    pub moves: String,
     pub status: String,
-    #[sqlx(rename = "start_time")]
-    pub start_time: DateTime<Utc>,
-    #[sqlx(rename = "end_time")]
+    pub result: Option<String>,
+    pub created_at: DateTime<Utc>,
+    // Nouvelles colonnes timer
+    pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
-    #[sqlx(rename = "duration_seconds")]
     pub duration_seconds: Option<i32>,
+    pub moves_count: i32,
 }
 
-/// Input for creating a new game
-#[derive(Debug, InputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize, SimpleObject)]
+pub struct GameMoveResult {
+    pub game: Game,
+    pub stockfish_move: String,
+    pub game_over: bool,
+    pub winner: Option<String>,
+    // Nouvelles infos timer
+    pub move_time_ms: Option<i64>,
+    pub total_time_seconds: Option<i32>,
+}
+
+// Ajouter les inputs manquants
+#[derive(Debug, Clone, Serialize, Deserialize, InputObject)]
 pub struct NewGameInput {
+    #[graphql(name = "userId")]
     pub user_id: String,
     pub difficulty: i32,
 }
 
-/// Input for making a move
-#[derive(Debug, InputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize, InputObject)]
 pub struct MakeMoveInput {
+    #[graphql(name = "gameId")]
     pub game_id: String,
+    #[graphql(name = "playerMove")]
     pub player_move: String,
-}
-
-/// Game result after a move
-#[derive(Debug, SimpleObject)]
-pub struct GameMoveResult {
-    pub game: Game,
-    pub stockfish_move: Option<String>,
-    pub game_over: bool,
-    pub winner: Option<String>,
 }
