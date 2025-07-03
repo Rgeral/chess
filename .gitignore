@@ -1,0 +1,17 @@
+# Base de données locale
+backend/chess.db
+backend/chess.db-shm
+backend/chess.db-wal
+
+# Rust
+backend/target/
+backend/Cargo.lock
+
+# Node.js
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# Environnement
+.env
+.env.local
