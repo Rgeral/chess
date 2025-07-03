@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, user_id, difficulty, games_played, games_won, \n                    total_time_seconds, average_time_seconds, total_moves, average_moves \n             FROM user_level_stats WHERE user_id = ? ORDER BY difficulty ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "difficulty",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "games_played",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "games_won",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "total_time_seconds",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "average_time_seconds",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "total_moves",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "average_moves",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2d7186cbca71a009883466b15e3733e1b67131c6a01c111db24bf8aa3c168a2e"
+}

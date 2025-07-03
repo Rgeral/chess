@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET estimated_elo = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "fc9c3fa816ee4ebd30964c6f7d659f8c967b3179772a764ef6f37ac4977801ad"
+}

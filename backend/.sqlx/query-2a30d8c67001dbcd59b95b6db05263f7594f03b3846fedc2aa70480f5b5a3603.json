@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, user_id, difficulty, best_time_seconds, moves_count, achieved_at \n            FROM user_records WHERE user_id = ? ORDER BY difficulty ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "difficulty",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "best_time_seconds",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "moves_count",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "achieved_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2a30d8c67001dbcd59b95b6db05263f7594f03b3846fedc2aa70480f5b5a3603"
+}
