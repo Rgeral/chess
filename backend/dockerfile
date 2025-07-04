@@ -7,6 +7,10 @@ RUN cargo build --release
 
 FROM rustlang/rust:nightly
 RUN apt-get update && apt-get install -y stockfish sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
+# Vérifier où Stockfish est installé et créer un lien symbolique si nécessaire
+RUN which stockfish || echo "Stockfish not found in PATH"
+RUN ls -la /usr/games/stockfish || echo "Stockfish not found in /usr/games/"
+RUN ln -sf /usr/games/stockfish /usr/local/bin/stockfish || echo "Could not create symlink"
 WORKDIR /app
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
 COPY ./migrations ./migrations

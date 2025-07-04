@@ -8,6 +8,30 @@ use rand::rngs::StdRng;
 pub struct StockfishService;
 
 impl StockfishService {
+    /// Obtient la commande Stockfish appropriée selon l'environnement
+    fn get_stockfish_command() -> String {
+        // Essayer différents chemins possibles pour Stockfish
+        let possible_paths = vec![
+            "stockfish",           // Dans le PATH
+            "/usr/games/stockfish", // Installation Ubuntu/Debian standard
+            "/usr/local/bin/stockfish", // Installation via lien symbolique
+            "/usr/bin/stockfish",  // Installation alternative
+        ];
+        
+        for path in possible_paths {
+            if std::process::Command::new(path)
+                .arg("--help")
+                .output()
+                .is_ok() {
+                println!("🔍 Stockfish trouvé à: {}", path);
+                return path.to_string();
+            }
+        }
+        
+        println!("⚠️  Stockfish non trouvé, utilisation du chemin par défaut");
+        "stockfish".to_string()
+    }
+
     /// Get best move from Stockfish with VRAIE faiblesse pour niveaux 1-5
     pub async fn get_best_move(fen: &str, difficulty: i32) -> Result<String, String> {
         let target_elo = difficulty * 100;
@@ -64,7 +88,8 @@ impl StockfishService {
 
     /// Génère un coup légal complètement aléatoire (pour niveaux 1-5)
     async fn get_random_legal_move(fen: &str) -> Result<String, String> {
-        let mut child = TokioCommand::new("stockfish")
+        let stockfish_cmd = Self::get_stockfish_command();
+        let mut child = TokioCommand::new(&stockfish_cmd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -126,7 +151,8 @@ impl StockfishService {
         difficulty: i32
     ) -> Result<String, String> {
         // Spawn Stockfish process
-        let mut child = TokioCommand::new("stockfish")
+        let stockfish_cmd = Self::get_stockfish_command();
+        let mut child = TokioCommand::new(&stockfish_cmd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -293,7 +319,8 @@ impl StockfishService {
     pub async fn evaluate_position(fen: &str, depth: i32) -> Result<i32, String> {
         println!("📊 Evaluating position: {}", fen);
         
-        let mut child = TokioCommand::new("stockfish")
+        let stockfish_cmd = Self::get_stockfish_command();
+        let mut child = TokioCommand::new(&stockfish_cmd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
