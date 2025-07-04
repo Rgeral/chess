@@ -163,7 +163,7 @@
 <main class="container">
     <!-- Header with user info and timer -->
     <header class="game-header">
-        <h1>♟️ Chess Master Pro</h1>
+        <h1>♟️ Chess Master Pro BETA</h1>
         
         {#if $gameStore.user}
             <div class="user-info">
