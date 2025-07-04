@@ -15,6 +15,7 @@ use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use dotenv::dotenv;
 use sqlx::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
+use std::env;
 
 use graphql::{QueryRoot, MutationRoot};
 
