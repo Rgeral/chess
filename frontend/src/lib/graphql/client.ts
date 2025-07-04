@@ -1,6 +1,9 @@
 import { GraphQLClient } from 'graphql-request';
 
-export const graphqlClient = new GraphQLClient('http://localhost:8080/graphql', {
+const apiUrl = import.meta.env.VITE_GRAPHQL_API_URL;
+
+
+export const graphqlClient = new GraphQLClient(apiUrl, {
     headers: {
         'Content-Type': 'application/json',
     },

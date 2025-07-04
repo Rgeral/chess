@@ -24,6 +24,7 @@ use graphql::{QueryRoot, MutationRoot};
 async fn main() {
     dotenv().ok();
     
+    let cors_origin = env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let database_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "sqlite:chess.db".to_string());
     
@@ -45,7 +46,7 @@ async fn main() {
 
     // Configure CORS for frontend access
     let cors = CorsLayer::new()
-        .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
+        .allow_origin(cors_origin.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(Any);
 
