@@ -11,5 +11,6 @@ WORKDIR /app
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
 COPY ./migrations ./migrations
 COPY ./chess.db ./chess.db
+COPY .env.production .env
 EXPOSE 8080
 CMD ["./chess-backend"]
