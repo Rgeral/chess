@@ -365,7 +365,7 @@
                 <button on:click={resetGame} class="btn btn-secondary">
                     🏠 Back to Menu
                 </button>
-                <button on:click={resignGame} class="btn btn-secondary" disabled={$gameStore.currentGame?.status === 'finished'}>
+                <button on:click={resignGame} class="btn btn-secondary" disabled={$gameStore.currentGame?.status !== 'active'}>
                     🚩 Resign
                 </button>
             </div>
