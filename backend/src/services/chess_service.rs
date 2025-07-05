@@ -142,4 +142,31 @@ pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
         
         Ok(moves)
     }
+
+    /// Gets the piece type at a specific square
+    /// 
+    /// # Arguments
+    /// * `fen` - Current board position in FEN notation
+    /// * `square_notation` - Square in algebraic notation (e.g., "e4")
+    /// 
+    /// # Returns
+    /// Option<String> - Piece type name or None if empty
+    pub fn get_piece_at_square(fen: &str, square_notation: &str) -> Option<String> {
+        let board = Board::from_str(fen).ok()?;
+        let square = Square::from_str(square_notation).ok()?;
+        
+        if let Some(piece) = board.piece_on(square) {
+            let piece_name = match piece {
+                chess::Piece::Pawn => "pawn",
+                chess::Piece::Knight => "knight", 
+                chess::Piece::Bishop => "bishop",
+                chess::Piece::Rook => "rook",
+                chess::Piece::Queen => "queen",
+                chess::Piece::King => "king",
+            };
+            Some(piece_name.to_string())
+        } else {
+            None
+        }
+    }
 }

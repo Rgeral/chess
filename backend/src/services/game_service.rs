@@ -185,6 +185,7 @@ let game = Game {
         let (game_over, winner) = ChessService::check_game_over(&new_fen);
         
         let stockfish_move: String;
+        let mut last_move_piece_type = "unknown".to_string();
         
         if game_over {
             // Game ends, update final state
@@ -216,6 +217,20 @@ let game = Game {
                 .map_err(|e| format!("Stockfish error: {}", e))?;
 
             println!("🤖 Stockfish plays: {}", stockfish_move);
+            println!("🎯 Move breakdown: from='{}', to='{}'", &stockfish_move[0..2], &stockfish_move[2..4]);
+
+            // Get the piece type that's moving BEFORE applying the move
+            let piece_type = if stockfish_move.len() >= 4 {
+                let from_square = &stockfish_move[0..2];
+                println!("🔍 Looking for piece at square: {}", from_square);
+                // Utiliser la FEN AVANT le coup de Stockfish (c'est game.fen ici)
+                let piece = ChessService::get_piece_at_square(&game.fen, from_square)
+                    .unwrap_or_else(|| "piece".to_string());
+                println!("🎲 Found piece: {}", piece);
+                piece
+            } else {
+                "unknown".to_string()
+            };
 
             // Apply Stockfish's move
             game.fen = ChessService::make_move(&new_fen, &stockfish_move)
@@ -246,6 +261,9 @@ let game = Game {
                 }
                 println!("🏁 Game finished after Stockfish move! Winner: {:?}", sf_winner);
             }
+
+            // Store the piece type for animation
+            last_move_piece_type = piece_type;
         }
 
         // Save updated game state
@@ -273,6 +291,21 @@ let game = Game {
     let winner = game.result.clone();
     let game_over = game.status == "finished";
 
+    // Créer lastMove pour l'animation avec le coup de Stockfish (seul coup à animer)
+    let last_move = if stockfish_move != "none" {
+        let from_square = stockfish_move[0..2].to_string();
+        let to_square = stockfish_move[2..4].to_string();
+        println!("🎬 Creating LastMove: {} -> {} (piece: {}, color: black)", from_square, to_square, last_move_piece_type);
+        Some(crate::models::game::LastMove {
+            from: from_square,
+            to: to_square,
+            piece: last_move_piece_type,
+            color: "black".to_string(),
+        })
+    } else {
+        None
+    };
+
     println!("✅ Move processed successfully");
 
     Ok(GameMoveResult {
@@ -282,6 +315,7 @@ let game = Game {
         winner,
         move_time_ms: None,
         total_time_seconds,
+        last_move,
     })
     }
 }

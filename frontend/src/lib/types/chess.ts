@@ -58,6 +58,14 @@ export interface GameMoveResult {
     winner?: string;
     moveTimeMs?: number;
     totalTimeSeconds?: number;
+    lastMove?: LastMove;
+}
+
+export interface LastMove {
+    from: string;
+    to: string;
+    piece: string;
+    color: string;
 }
 
 export interface ChessPiece {

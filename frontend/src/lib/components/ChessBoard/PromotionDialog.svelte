@@ -18,7 +18,7 @@
         { type: 'knight', symbol: '♘', name: 'Knight' }
     ] as const;
     
-    function handlePromotion(piece: typeof promotionPieces[0]['type']) {
+    function handlePromotion(piece: 'queen' | 'rook' | 'bishop' | 'knight') {
         dispatch('promote', { from, to, piece });
     }
     
@@ -28,8 +28,18 @@
 </script>
 
 {#if visible}
-    <div class="promotion-overlay" on:click={handleCancel} role="dialog" aria-modal="true" aria-labelledby="promotion-title">
-        <div class="promotion-dialog" on:click|stopPropagation>
+    <div
+        class="promotion-overlay"
+        on:click={handleCancel}
+        on:keydown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') handleCancel();
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="promotion-title"
+        tabindex="0"
+    >
+        <div class="promotion-dialog" on:click|stopPropagation tabindex="-1">
             <h3 id="promotion-title">🎯 Promote your pawn!</h3>
             <p>Choose which piece to promote to:</p>
             
@@ -52,7 +62,6 @@
         </div>
     </div>
 {/if}
-
 <style>
     .promotion-overlay {
         position: fixed;

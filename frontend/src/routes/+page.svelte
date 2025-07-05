@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { gameStore, gameActions } from '$lib/stores/gameStore';
     import { ChessService } from '$lib/services/chessService';
-    import ChessBoard from '$lib/components/ChessBoard.svelte';
+    import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
     
     let username = '';
     let difficulty = 5;
@@ -12,7 +12,8 @@
     let leaderboard = [];
 
     /**
-     * Creates a new user account and loads their profile
+        </div>
+</main>s a new user account and loads their profile
      */
     async function createUser() {
         if (!username.trim()) {
@@ -152,6 +153,45 @@
     function getWinRate(gamesWon, totalGames) {
         if (totalGames === 0) return 0;
         return Math.round((gamesWon / totalGames) * 100);
+    }
+
+    /**
+     * Permet d'abandonner la partie (résignation)
+     */
+    async function resignGame() {
+        if (!$gameStore.currentGame || $gameStore.currentGame.status === 'finished') return;
+        // Simule la fin de partie côté backend (on pourrait faire une mutation dédiée, ici on fait simple)
+        // On met à jour le store localement
+        const updatedGame = {
+            ...$gameStore.currentGame,
+            status: 'finished',
+            result: 'black', // Stockfish gagne
+            end_time: new Date().toISOString(),
+        };
+        gameActions.setCurrentGame(updatedGame);
+        gameActions.stopTimer();
+        gameStarted = false;
+        alert('You resigned! Stockfish wins.');
+        await loadUserProfile();
+        await loadLeaderboard();
+    }
+
+    // Affichage automatique de la fin de partie (mat, pat, abandon)
+    let gameOverAlerted = false;
+    $: if ($gameStore.currentGame && $gameStore.currentGame.status === 'finished' && !gameOverAlerted) {
+        gameOverAlerted = true;
+        let outcome = 'Game over!';
+        if ($gameStore.currentGame.result === 'white') outcome = 'You won! 🏆';
+        else if ($gameStore.currentGame.result === 'black') outcome = 'You lost! 😔';
+        else if ($gameStore.currentGame.result === 'draw') outcome = 'Draw! 🤝';
+        const time = gameActions.formatTime($gameStore.elapsedTime);
+        alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${$gameStore.currentGame.movesCount}`);
+        // Reload stats after game ends
+        loadUserProfile();
+        loadLeaderboard();
+    }
+    $: if ($gameStore.currentGame && $gameStore.currentGame.status === 'active') {
+        gameOverAlerted = false;
     }
 
     // Cleanup timer on component destroy
@@ -318,13 +358,16 @@
 
             <!-- Chess Board -->
             <div class="board-container">
-                <ChessBoard onMove={makeMove} />
+                <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} />
             </div>
 
             <!-- Game Controls -->
             <div class="game-controls">
                 <button on:click={resetGame} class="btn btn-secondary">
                     🏠 Back to Menu
+                </button>
+                <button on:click={resignGame} class="btn btn-secondary" disabled={$gameStore.currentGame?.status !== 'active'}>
+                    🚩 Resign
                 </button>
             </div>
         </div>
