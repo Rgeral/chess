@@ -69,12 +69,23 @@ impl StockfishService {
         if difficulty <= 5 {
             // Créer un RNG thread-safe
             let mut rng = StdRng::from_entropy();
-            if rng.gen::<f64>() < random_move_chance {
+            let random_roll = rng.gen::<f64>();
+            println!("🎲 Random roll for level {}: {:.3} (threshold: {:.3})", difficulty, random_roll, random_move_chance);
+            
+            if random_roll < random_move_chance {
                 // Générer directement un coup aléatoire legal
-                if let Ok(random_move) = Self::get_random_legal_move(fen).await {
-                    println!("🎲 NIVEAU {}: Coup complètement aléatoire choisi: {}", difficulty, random_move);
-                    return Ok(random_move);
+                println!("🎯 Attempting to generate random move for level {}...", difficulty);
+                match Self::get_random_legal_move(fen).await {
+                    Ok(random_move) => {
+                        println!("✅ SUCCESS: Level {} random move generated: {}", difficulty, random_move);
+                        return Ok(random_move);
+                    }
+                    Err(e) => {
+                        println!("❌ ERROR: Failed to generate random move for level {}: {}", difficulty, e);
+                    }
                 }
+            } else {
+                println!("🤖 Level {}: Random roll failed, falling back to Stockfish", difficulty);
             }
         }
         
@@ -87,55 +98,24 @@ impl StockfishService {
     }
 
     /// Génère un coup légal complètement aléatoire (pour niveaux 1-5)
+    /// Utilise directement la bibliothèque chess au lieu de Stockfish pour plus de fiabilité
     async fn get_random_legal_move(fen: &str) -> Result<String, String> {
-        let stockfish_cmd = Self::get_stockfish_command();
-        let mut child = TokioCommand::new(&stockfish_cmd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to start Stockfish: {}", e))?;
+        use chess::{Board, MoveGen};
+        use std::str::FromStr;
         
-        let stdin = child.stdin.as_mut().ok_or("Failed to open stdin")?;
-        let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
+        // Utiliser directement la bibliothèque chess pour obtenir tous les coups légaux
+        let board = Board::from_str(fen).map_err(|e| format!("Invalid FEN: {}", e))?;
+        let movegen = MoveGen::new_legal(&board);
+        let legal_moves: Vec<String> = movegen.map(|m| m.to_string()).collect();
         
-        // Init rapide
-        stdin.write_all(b"uci\n").await.map_err(|e| format!("Failed to write: {}", e))?;
-        stdin.write_all(b"isready\n").await.map_err(|e| format!("Failed to write: {}", e))?;
-        stdin.write_all(format!("position fen {}\n", fen).as_bytes()).await.map_err(|e| format!("Failed to write: {}", e))?;
+        println!("🎲 Found {} legal moves for random selection", legal_moves.len());
         
-        // Demander TOUS les coups légaux avec MultiPV élevé
-        stdin.write_all(b"setoption name MultiPV value 50\n").await.map_err(|e| format!("Failed to write: {}", e))?;
-        stdin.write_all(b"go movetime 10\n").await.map_err(|e| format!("Failed to write: {}", e))?;
-        
-        let mut reader = TokioBufReader::new(stdout);
-        let mut line = String::new();
-        let mut legal_moves = Vec::new();
-        
-        while reader.read_line(&mut line).await.map_err(|e| format!("Failed to read: {}", e))? > 0 {
-            if line.contains("multipv") && line.contains("pv") {
-                if let Some(pv_pos) = line.find("pv ") {
-                    let move_part = &line[pv_pos + 3..];
-                    if let Some(mv) = move_part.split_whitespace().next() {
-                        if mv.len() >= 4 {
-                            legal_moves.push(mv.to_string());
-                        }
-                    }
-                }
-            }
-            if line.starts_with("bestmove") {
-                break;
-            }
-            line.clear();
-        }
-        
-        let _ = stdin.write_all(b"quit\n").await;
-        let _ = child.wait().await;
-        
-        // Choisir un coup aléatoire parmi TOUS les coups légaux
         if !legal_moves.is_empty() {
             let mut rng = StdRng::from_entropy();
             let random_index = rng.gen_range(0..legal_moves.len());
-            Ok(legal_moves[random_index].clone())
+            let chosen_move = legal_moves[random_index].clone();
+            println!("🎯 Random move chosen: {} (index {} of {})", chosen_move, random_index, legal_moves.len());
+            Ok(chosen_move)
         } else {
             Err("No legal moves found".to_string())
         }

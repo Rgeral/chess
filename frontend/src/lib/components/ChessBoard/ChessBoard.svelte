@@ -35,11 +35,6 @@
     
     // Board state
     let board: ChessSquareType[][] = [];
-    let promotionDialog = {
-        visible: false,
-        from: '',
-        to: ''
-    };
     
     // Files and ranks for board generation
     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -138,7 +133,7 @@
         // 1. Si une pièce est sélectionnée et on clique sur une destination valide (case verte)
         if (selectedSquareId && possibleMoves.includes(squareId)) {
             // Check for pawn promotion
-            if (isPawnPromotion(selectedSquareId, squareId, board)) {
+            if (isPawnPromotion(selectedSquareId, squareId)) {
                 gameActions.setPendingPromotion(selectedSquareId, squareId);
                 selectedSquareId = null;
                 possibleMoves = [];
@@ -179,7 +174,7 @@
 
         if (fromSquare && fromSquare !== toSquare) {
             // Check for pawn promotion
-            if (isPawnPromotion(fromSquare, toSquare, board)) {
+            if (isPawnPromotion(fromSquare, toSquare)) {
                 gameActions.setPendingPromotion(fromSquare, toSquare);
                 return;
             }
@@ -222,12 +217,15 @@
      */
     function handlePromotion(event: CustomEvent<PromotionChoice>) {
         const { from, to, piece } = event.detail;
-        promotionDialog.visible = false;
+        // Clear pending promotion state
+        gameActions.clearPendingPromotion();
+        // Execute the move with promotion
         handleMove({ from, to, promotion: piece });
     }
     
     function handlePromotionCancel() {
-        promotionDialog.visible = false;
+        // Clear pending promotion state
+        gameActions.clearPendingPromotion();
     }
     
     /**
@@ -437,59 +435,72 @@
     });
 </script>
 
-<div class="chess-board-container">
-    <BoardCoordinates {flipped} {showCoordinates}>
-        <div class="chess-board" class:flipped>
-            {#each displayBoard as rank, rankIndex}
-                {#each rank as square, fileIndex}
-                    {@const squareId = `${square.file}${square.rank}`}
-                    <ChessSquareComponent
-                        {square}
-                        isSelected={selectedSquareId === squareId}
-                        isHighlighted={possibleMoves.includes(squareId)}
-                        isPossibleMove={possibleMoves.includes(squareId)}
-                        isLastMove={showLastMoveHighlight ? (showLastMoveHighlight.from === squareId || showLastMoveHighlight.to === squareId) : false}
-                        isLastMoveFrom={!!(showLastMoveHighlight && showLastMoveHighlight.from === squareId)}
-                        isLastMoveTo={!!(showLastMoveHighlight && showLastMoveHighlight.to === squareId)}
-                        isDarkSquare={isDarkSquare(square.file, square.rank)}
-                        allowDrag={allowMoves}
-                        allowDrop={allowMoves}
-                        hidepiece={animating && animationFrom === squareId}
-                        on:click={handleSquareClick}
-                        on:dragstart={handleDragStart}
-                        on:drop={handleDrop}
-                    />
+<div class="chess-board-outer-center">
+    <div class="chess-board-container">
+        <BoardCoordinates {flipped} {showCoordinates}>
+            <div class="chess-board" class:flipped>
+                {#each displayBoard as rank, rankIndex}
+                    {#each rank as square, fileIndex}
+                        {@const squareId = `${square.file}${square.rank}`}
+                        <ChessSquareComponent
+                            {square}
+                            isSelected={selectedSquareId === squareId}
+                            isHighlighted={possibleMoves.includes(squareId)}
+                            isPossibleMove={possibleMoves.includes(squareId)}
+                            isLastMove={showLastMoveHighlight ? (showLastMoveHighlight.from === squareId || showLastMoveHighlight.to === squareId) : false}
+                            isLastMoveFrom={!!(showLastMoveHighlight && showLastMoveHighlight.from === squareId)}
+                            isLastMoveTo={!!(showLastMoveHighlight && showLastMoveHighlight.to === squareId)}
+                            isDarkSquare={isDarkSquare(square.file, square.rank)}
+                            allowDrag={allowMoves}
+                            allowDrop={allowMoves}
+                            hidepiece={animating && animationFrom === squareId}
+                            on:click={handleSquareClick}
+                            on:dragstart={handleDragStart}
+                            on:drop={handleDrop}
+                        />
+                    {/each}
                 {/each}
-            {/each}
-            
-            <!-- Floating animation piece -->
-            {#if animating && animationPiece}
-                <div
-                    class="animating-piece"
-                    style={getAnimationStyle(animationFrom, animationTo)}
-                >
-                    {animationPiece.type === 'king' ? (animationPiece.color === 'white' ? '♔' : '♚')
-                    : animationPiece.type === 'queen' ? (animationPiece.color === 'white' ? '♕' : '♛')
-                    : animationPiece.type === 'rook' ? (animationPiece.color === 'white' ? '♖' : '♜')
-                    : animationPiece.type === 'bishop' ? (animationPiece.color === 'white' ? '♗' : '♝')
-                    : animationPiece.type === 'knight' ? (animationPiece.color === 'white' ? '♘' : '♞')
-                    : animationPiece.type === 'pawn' ? (animationPiece.color === 'white' ? '♙' : '♟')
-                    : ''}
-                </div>
-            {/if}
-        </div>
-    </BoardCoordinates>
-    
-    <PromotionDialog
-        visible={promotionDialog.visible}
-        from={promotionDialog.from}
-        to={promotionDialog.to}
-        on:promote={handlePromotion}
-        on:cancel={handlePromotionCancel}
-    />
+                
+                <!-- Floating animation piece -->
+                {#if animating && animationPiece}
+                    <div
+                        class="animating-piece"
+                        style={getAnimationStyle(animationFrom, animationTo)}
+                    >
+                        {animationPiece.type === 'king' ? (animationPiece.color === 'white' ? '♔' : '♚')
+                        : animationPiece.type === 'queen' ? (animationPiece.color === 'white' ? '♕' : '♛')
+                        : animationPiece.type === 'rook' ? (animationPiece.color === 'white' ? '♖' : '♜')
+                        : animationPiece.type === 'bishop' ? (animationPiece.color === 'white' ? '♗' : '♝')
+                        : animationPiece.type === 'knight' ? (animationPiece.color === 'white' ? '♘' : '♞')
+                        : animationPiece.type === 'pawn' ? (animationPiece.color === 'white' ? '♙' : '♟')
+                        : ''}
+                    </div>
+                {/if}
+            </div>
+        </BoardCoordinates>
+        
+        <!-- Promotion Dialog -->
+        <PromotionDialog
+            visible={$gameStore.pendingPromotion?.isActive || false}
+            from={$gameStore.pendingPromotion?.from || ''}
+            to={$gameStore.pendingPromotion?.to || ''}
+            on:promote={handlePromotion}
+            on:cancel={handlePromotionCancel}
+        />
+    </div>
 </div>
 
 <style>
+    .chess-board-outer-center {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        /* On n'aligne plus verticalement */
+        margin-top: 32px; /* Ajuste la valeur selon l'espace voulu sous le timer */
+        background: #f8f9fa;
+        box-sizing: border-box;
+    }
+
     .chess-board-container {
         display: inline-block;
         margin: 20px;
