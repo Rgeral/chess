@@ -129,16 +129,21 @@
     }
     
     /**
-     * Handle square click events
+     * Handles square click events
      */
     function handleSquareClick(event: CustomEvent) {
         const { square, isPossibleMove } = event.detail;
         const squareId = `${square.file}${square.rank}`;
-        console.log('[handleSquareClick] Clicked square:', squareId, 'piece:', square.piece, 'isPossibleMove:', isPossibleMove);
 
         // 1. Si une pièce est sélectionnée et on clique sur une destination valide (case verte)
         if (selectedSquareId && possibleMoves.includes(squareId)) {
-            console.log('[handleSquareClick] Move from', selectedSquareId, 'to', squareId);
+            // Check for pawn promotion
+            if (isPawnPromotion(selectedSquareId, squareId, board)) {
+                gameActions.setPendingPromotion(selectedSquareId, squareId);
+                selectedSquareId = null;
+                possibleMoves = [];
+                return;
+            }
             handleMove({ from: selectedSquareId, to: squareId });
             selectedSquareId = null;
             possibleMoves = [];
@@ -148,15 +153,13 @@
         if (square.piece) {
             selectedSquareId = squareId;
             possibleMoves = getPossibleMoves(square);
-            console.log('[handleSquareClick] Piece selected:', squareId, 'Possible moves:', possibleMoves);
             return;
         }
         // 3. Sinon, on désélectionne
-        console.log('[handleSquareClick] Deselect');
         selectedSquareId = null;
         possibleMoves = [];
     }
-    
+
     /**
      * Handle drag start events
      */
@@ -167,7 +170,7 @@
     }
     
     /**
-     * Handle drop events
+     * Handles drop events
      */
     function handleDrop(event: CustomEvent) {
         const { square } = event.detail;
@@ -175,16 +178,12 @@
         const toSquare = `${square.file}${square.rank}`;
 
         if (fromSquare && fromSquare !== toSquare) {
-            // Check if this is a pawn promotion
-            if (isPawnPromotion(fromSquare, toSquare)) {
-                promotionDialog = {
-                    visible: true,
-                    from: fromSquare,
-                    to: toSquare
-                };
-            } else {
-                handleMove({ from: fromSquare, to: toSquare });
+            // Check for pawn promotion
+            if (isPawnPromotion(fromSquare, toSquare, board)) {
+                gameActions.setPendingPromotion(fromSquare, toSquare);
+                return;
             }
+            handleMove({ from: fromSquare, to: toSquare });
         }
     }
     
