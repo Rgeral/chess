@@ -2,7 +2,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { gameStore, gameActions } from '$lib/stores/gameStore';
     import { ChessService } from '$lib/services/chessService';
-    import ChessBoard from '$lib/components/ChessBoard.svelte';
+    import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
     
     let username = '';
     let difficulty = 5;
@@ -318,7 +318,7 @@
 
             <!-- Chess Board -->
             <div class="board-container">
-                <ChessBoard onMove={makeMove} />
+                <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} />
             </div>
 
             <!-- Game Controls -->

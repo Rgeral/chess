@@ -28,6 +28,16 @@ pub struct GameMoveResult {
     // Nouvelles infos timer
     pub move_time_ms: Option<i64>,
     pub total_time_seconds: Option<i32>,
+    // Nouveau: derniers coups pour animation
+    pub last_move: Option<LastMove>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, SimpleObject)]
+pub struct LastMove {
+    pub from: String,
+    pub to: String,
+    pub piece: String,
+    pub color: String,
 }
 
 // Ajouter les inputs manquants

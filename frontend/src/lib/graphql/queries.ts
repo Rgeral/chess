@@ -41,6 +41,12 @@ export const MAKE_MOVE = `
             gameOver
             winner
             totalTimeSeconds
+            lastMove {
+                from
+                to
+                piece
+                color
+            }
         }
     }
 `;

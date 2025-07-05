@@ -16,7 +16,7 @@ interface GameState {
     selectedSquare: string | null;
     possibleMoves: string[];
     pendingPromotion: PendingPromotion | null;
-
+    lastMove: { from: string; to: string } | null; // Change type to match what we use
 }
 
 const initialState: GameState = {
@@ -28,10 +28,10 @@ const initialState: GameState = {
     gameStartTime: null,
     elapsedTime: 0,
     gameTimer: null,
-    // AJOUTER CES LIGNES :
     selectedSquare: null,
     possibleMoves: [],
-    pendingPromotion: null
+    pendingPromotion: null,
+    lastMove: null // Ajout pour animation du dernier coup
 };
 
 
@@ -169,11 +169,31 @@ export const gameActions = {
      * @param result - Move result containing updated game state and outcome
      */
     updateGameAfterMove: (result: any) => {
+        // Log the FEN after every move
+        if (result?.game?.fen) {
+            console.log('📥 New FEN after move:', result.game.fen);
+        }
+        // Détecter le dernier coup joué (si fourni par le backend, sinon à calculer)
+        let lastMove = null;
+        if (result?.lastMove) {
+            // Nouveau format de lastMove depuis le backend
+            lastMove = {
+                from: result.lastMove.from,
+                to: result.lastMove.to,
+                piece: result.lastMove.piece,
+                color: result.lastMove.color
+            };
+        } else if (result?.move) {
+            lastMove = result.move; // { from: 'e2', to: 'e4', color: 'w' }
+        } else if (result?.game?.lastMove) {
+            lastMove = result.game.lastMove;
+        }
+        console.log('[GAMESTORE] updateGameAfterMove: result.lastMove =', result?.lastMove, 'result.move =', result?.move, 'result.game.lastMove =', result?.game?.lastMove, 'lastMove used =', lastMove);
         gameStore.update(state => ({
             ...state,
-            currentGame: result.game
+            currentGame: result.game,
+            lastMove
         }));
-        
         // Stop timer if game ended
         if (result.gameOver) {
             gameActions.stopTimer();
@@ -194,7 +214,8 @@ export const gameActions = {
                 currentGame: null,
                 gameStartTime: null,
                 elapsedTime: 0,
-                gameTimer: null
+                gameTimer: null,
+                lastMove: null // Reset last move
             };
         });
     },
