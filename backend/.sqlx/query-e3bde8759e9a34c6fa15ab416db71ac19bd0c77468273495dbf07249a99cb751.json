@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO user_records (id, user_id, difficulty, best_time_seconds, moves_count)\n                 VALUES (?, ?, ?, ?, ?)\n                 ON CONFLICT(user_id, difficulty) DO UPDATE SET\n                    best_time_seconds = ?,\n                    moves_count = ?,\n                    achieved_at = CURRENT_TIMESTAMP",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "e3bde8759e9a34c6fa15ab416db71ac19bd0c77468273495dbf07249a99cb751"
+}

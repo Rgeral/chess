@@ -1,0 +1,42 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup WireGuard
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wireguard
+          echo "${{ secrets.WIREGUARD_CONFIG }}" > wg0.conf
+          sudo wg-quick up ./wg0.conf
+
+      - name: Copy files to server via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 192.168.1.23
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "."
+          target: "/opt/chess/chess"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 192.168.1.23
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /opt/chess/chess
+            docker-compose down -v --remove-orphans
+            docker system prune -af
+            docker volume prune -f
+            docker-compose up --build -d

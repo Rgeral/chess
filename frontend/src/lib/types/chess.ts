@@ -1,42 +1,92 @@
 export interface User {
     id: string;
     username: string;
-    totalGames: number;  // camelCase
-    gamesWon: number;    // camelCase
-    gamesLost: number;   // camelCase
-    gamesDraw: number;   // camelCase
-    maxDifficultyBeaten: number; // camelCase
-    createdAt: string;   // camelCase
-    lastPlayed?: string; // camelCase
+    totalGames: number;
+    gamesWon: number;
+    createdAt: string;
+    totalPlayTimeSeconds?: number;
+    currentStreak?: number;
+    bestStreak?: number;
+    estimatedElo?: number;
 }
 
 export interface Game {
     id: string;
-    userId: string;      // camelCase
+    userId: string;
     difficulty: number;
     fen: string;
-    moves: string;
     status: string;
-    startTime: string;   // camelCase
-    endTime?: string;    // camelCase
-    durationSeconds?: number; // camelCase
+    result?: string;
+    createdAt: string;
+    startTime?: string;
+    endTime?: string;
+    durationSeconds?: number;
+    movesCount: number;
+}
+
+export interface UserRecord {
+    id: string;
+    userId: string;
+    difficulty: number;
+    bestTimeSeconds: number;
+    movesCount: number;
+    achievedAt?: string;
+}
+
+export interface UserLevelStats {
+    id: string;
+    userId: string;
+    difficulty: number;
+    gamesPlayed: number;
+    gamesWon: number;
+    totalTimeSeconds: number;
+    averageTimeSeconds: number;
+    totalMoves: number;
+    averageMoves: number;
+}
+
+export interface UserProfile {
+    user: User;
+    records: UserRecord[];
+    levelStats: UserLevelStats[];
 }
 
 export interface GameMoveResult {
     game: Game;
-    stockfishMove?: string;  // camelCase
-    gameOver: boolean;       // camelCase
+    stockfishMove: string;
+    gameOver: boolean;
     winner?: string;
+    moveTimeMs?: number;
+    totalTimeSeconds?: number;
+    lastMove?: LastMove;
 }
 
-// ChessSquare et ChessPiece restent identiques
-export interface ChessSquare {
-    file: string; // a-h
-    rank: number; // 1-8
-    piece?: ChessPiece;
+export interface LastMove {
+    from: string;
+    to: string;
+    piece: string;
+    color: string;
 }
 
 export interface ChessPiece {
-    type: 'pawn' | 'rook' | 'knight' | 'bishop' | 'queen' | 'king';
+    type: 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
     color: 'white' | 'black';
+}
+
+export interface ChessSquare {
+    file: string;
+    rank: number;
+    piece: ChessPiece | null;
+}
+
+export interface PromotionChoice {
+    from: string;
+    to: string;
+    piece: 'queen' | 'rook' | 'bishop' | 'knight';
+}
+
+export interface PendingPromotion {
+    from: string;
+    to: string;
+    isActive: boolean;
 }

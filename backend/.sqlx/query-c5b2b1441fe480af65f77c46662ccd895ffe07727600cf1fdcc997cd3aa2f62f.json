@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT difficulty, games_played, games_won \n             FROM user_level_stats \n             WHERE user_id = ? AND games_played > 0",
+  "describe": {
+    "columns": [
+      {
+        "name": "difficulty",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "games_played",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "games_won",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c5b2b1441fe480af65f77c46662ccd895ffe07727600cf1fdcc997cd3aa2f62f"
+}

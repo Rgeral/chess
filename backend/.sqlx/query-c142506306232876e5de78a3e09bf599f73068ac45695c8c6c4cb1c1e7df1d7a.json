@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c142506306232876e5de78a3e09bf599f73068ac45695c8c6c4cb1c1e7df1d7a"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE games SET fen = ?, status = ?, result = ?, end_time = ?, duration_seconds = ?, moves_count = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "1a2716ad9e7416b634a6c5e5ef03bd9aa8d83802a67f8db6b93be40e9f57348b"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET \n                    current_streak = COALESCE(current_streak, 0) + 1,\n                    best_streak = MAX(COALESCE(best_streak, 0), COALESCE(current_streak, 0) + 1)\n                WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3ea499bcb08a5388904ee5bc80fdcf530152c48d1d44ac7aac15e62e7a2f3f48"
+}

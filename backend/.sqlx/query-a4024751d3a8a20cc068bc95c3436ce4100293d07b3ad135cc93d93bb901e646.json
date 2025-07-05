@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "difficulty",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "fen",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "result",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "start_time",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "end_time",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "duration_seconds",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "moves_count",
+        "ordinal": 10,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a4024751d3a8a20cc068bc95c3436ce4100293d07b3ad135cc93d93bb901e646"
+}

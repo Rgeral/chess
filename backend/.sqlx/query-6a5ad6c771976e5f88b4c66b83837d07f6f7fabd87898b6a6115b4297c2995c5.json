@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO user_level_stats (id, user_id, difficulty, games_played, games_won, total_time_seconds, total_moves)\n             VALUES (?, ?, ?, 1, ?, ?, ?)\n             ON CONFLICT(user_id, difficulty) DO UPDATE SET\n                games_played = games_played + 1,\n                games_won = games_won + ?,\n                total_time_seconds = total_time_seconds + ?,\n                total_moves = total_moves + ?,\n                average_time_seconds = (total_time_seconds + ?) / (games_played + 1),\n                average_moves = (total_moves + ?) / (games_played + 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "6a5ad6c771976e5f88b4c66b83837d07f6f7fabd87898b6a6115b4297c2995c5"
+}
