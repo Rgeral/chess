@@ -12,7 +12,8 @@
     let leaderboard = [];
 
     /**
-     * Creates a new user account and loads their profile
+        </div>
+</main>s a new user account and loads their profile
      */
     async function createUser() {
         if (!username.trim()) {
