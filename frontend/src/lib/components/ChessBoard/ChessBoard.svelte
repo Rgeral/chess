@@ -520,29 +520,63 @@
         user-select: none;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }
-    
+
+    /* Correction alignement labels */
+    .board-coordinates {
+        position: relative;
+        width: 500px;
+        margin: 0 auto;
+    }
+    .rank-labels {
+        position: absolute;
+        left: -28px;
+        top: 0;
+        height: 500px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        pointer-events: none;
+    }
+    .rank-label {
+        height: 62.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: #b9b7b4;
+        font-weight: bold;
+        width: 24px;
+    }
     /* Responsive design */
     @media (max-width: 768px) {
-        .chess-board {
+        .chess-board, .board-coordinates {
             width: 350px;
             height: 350px;
         }
-        
-        .chess-board-container {
-            margin: 10px;
-            padding: 15px;
+        .rank-labels {
+            height: 350px;
+            left: -22px;
+        }
+        .rank-label {
+            height: 43.75px;
+            width: 18px;
+            font-size: 13px;
         }
     }
-    
     @media (max-width: 480px) {
-        .chess-board {
+        .chess-board, .board-coordinates {
             width: 280px;
             height: 280px;
         }
-        
-        .chess-board-container {
-            margin: 5px;
-            padding: 10px;
+        .rank-labels {
+            height: 280px;
+            left: -16px;
+        }
+        .rank-label {
+            height: 35px;
+            width: 14px;
+            font-size: 11px;
         }
     }
 </style>
