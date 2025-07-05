@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup WireGuard
-        uses: mondeja/wireguard-action@v1
+        uses: egor-tensin/setup-wireguard@v1
         with:
           config: ${{ secrets.WIREGUARD_CONFIG }}
 
