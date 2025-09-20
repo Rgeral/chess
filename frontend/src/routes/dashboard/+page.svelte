@@ -4,9 +4,9 @@
     import { ChessService } from '$lib/services/chessService';
     import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
     import type { User } from '$lib/types/chess';
-    
+
     let username: string = '';
-    let difficulty: number = 5;
+    let difficulty: number = 5; // 1-20 (Stockfish)
     let gameStarted: boolean = false;
     let showStats: boolean = false;
     let showLeaderboard: boolean = false;
@@ -20,10 +20,8 @@
             gameActions.setError('Please enter a username');
             return;
         }
-
         gameActions.setLoading(true);
         gameActions.setError(null);
-
         try {
             const user = await ChessService.createUser(username.trim());
             gameActions.setUser(user);
@@ -44,7 +42,6 @@
      */
     async function loadUserProfile(): Promise<void> {
         if (!$gameStore.user) return;
-
         try {
             const profile = await ChessService.getUserProfile($gameStore.user.id);
             gameActions.setUserProfile(profile);
@@ -71,10 +68,8 @@
      */
     async function startNewGame(): Promise<void> {
         if (!$gameStore.user) return;
-
         gameActions.setLoading(true);
         gameActions.setError(null);
-
         try {
             const game = await ChessService.createGame($gameStore.user.id, difficulty);
             gameActions.setCurrentGame(game);
@@ -91,7 +86,7 @@
     }
 
     /**
-     * Resets game state and returns to menu
+     * Resets game state and returns to dashboard menu
      */
     function resetGame(): void {
         gameActions.clearGame();
@@ -107,15 +102,14 @@
     }
 
     /**
-     * Resign from the current game
+     * Resigns the current game and refreshes profile/leaderboard
      */
     async function resignGame(): Promise<void> {
         if (!$gameStore.currentGame || $gameStore.currentGame.status === 'finished') return;
-        // Simulate backend resignation; update store locally
         const updatedGame = {
             ...$gameStore.currentGame,
             status: 'finished',
-            result: 'black', // Stockfish wins
+            result: 'black',
             endTime: new Date().toISOString()
         };
         gameActions.setCurrentGame(updatedGame);
@@ -126,7 +120,7 @@
         await loadLeaderboard();
     }
 
-    // Auto display end of game when game finishes
+    // Show an alert when the game ends, then refresh stats
     let gameOverAlerted = false;
     $: if ($gameStore.currentGame && $gameStore.currentGame.status === 'finished' && !gameOverAlerted) {
         gameOverAlerted = true;
@@ -136,7 +130,6 @@
         else if ($gameStore.currentGame.result === 'draw') outcome = 'Draw! 🤝';
         const time = gameActions.formatTime($gameStore.elapsedTime);
         alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${$gameStore.currentGame.movesCount}`);
-        // Reload stats after game ends
         loadUserProfile();
         loadLeaderboard();
     }
@@ -144,623 +137,292 @@
         gameOverAlerted = false;
     }
 
-    // Cleanup timer on component destroy
     onDestroy(() => {
         gameActions.stopTimer();
     });
 </script>
 
-<main class="container">
-    <!-- Header with user info and timer -->
-    <header class="game-header">
-        <h1>♟️ Chess Master Pro BETA</h1>
-        
-        {#if $gameStore.user}
-            <div class="user-info">
-                <div class="user-details">
-                    <strong>{$gameStore.user.username}</strong>
-                    {#if $gameStore.userProfile?.user.estimatedElo}
-                        <span class="elo-badge">ELO {$gameStore.userProfile.user.estimatedElo}</span>
-                    {/if}
-                </div>
-                
-                {#if gameStarted && $gameStore.currentGame}
-                    <div class="game-timer">
-                        ⏱️ {gameActions.formatTime($gameStore.elapsedTime)}
-                    </div>
-                {/if}
-            </div>
-        {/if}
-    </header>
+<!-- Full-height dashboard with chess background -->
+<div class="min-h-screen bg-background p-4 relative overflow-hidden">
+  <!-- Background chess pattern -->
+  <div class="absolute inset-0 opacity-5 pointer-events-none">
+    <div class="grid grid-cols-8 h-full">
+      {#each Array(64) as _, i}
+        <div class={Math.floor(i / 8) % 2 === i % 2 ? 'bg-primary' : 'bg-background'}></div>
+      {/each}
+    </div>
+  </div>
 
-    <!-- Loading and Error States -->
-    {#if $gameStore.loading}
-        <div class="loading">⏳ Loading...</div>
-    {/if}
-
-    {#if $gameStore.error}
-        <div class="error">❌ {$gameStore.error}</div>
-    {/if}
-
-    <!-- User Creation -->
-    {#if !$gameStore.user}
-        <div class="user-setup">
-            <h2>👤 Create Your Profile</h2>
-            <p>Enter your username to start playing and tracking your progress!</p>
-            
-            <div class="input-group">
-                <input 
-                    type="text" 
-                    bind:value={username} 
-                    placeholder="Enter your username"
-                    class="input"
-                    maxlength="20"
-                />
-                <button 
-                    on:click={createUser} 
-                    disabled={$gameStore.loading || !username.trim()} 
-                    class="btn btn-primary"
-                >
-                    🚀 Create Profile
-                </button>
-            </div>
+  <div class="relative z-10 max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <div class="flex justify-center items-center space-x-3 mb-4">
+        <span class="text-4xl">♔</span>
+        <h1 class="text-4xl font-bold text-primary">ChessClub</h1>
+        <span class="text-4xl">♕</span>
+      </div>
+      {#if $gameStore.user}
+        <h2 class="text-2xl font-semibold text-foreground mb-2">
+          Bienvenue, <span class="text-primary">{$gameStore.user.username}</span> !
+        </h2>
+        <p class="text-muted-foreground">Prêt pour votre prochaine partie ?</p>
+      {:else}
+        <div class="mx-auto max-w-md p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+          <h2 class="text-xl font-semibold text-foreground mb-2">Create Your Profile</h2>
+          <p class="text-muted-foreground mb-4">Enter a username to start playing and tracking your progress.</p>
+          <div class="flex gap-3">
+            <input type="text" bind:value={username} maxlength="20" placeholder="Username" class="flex-1 h-11 px-3 bg-input border border-border-50 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground" />
+            <button class="h-11 px-5 rounded-md bg-primary text-white font-semibold disabled:opacity-60" on:click={createUser} disabled={$gameStore.loading || !username.trim()}>
+              🚀 Create
+            </button>
+          </div>
         </div>
+      {/if}
+    </div>
 
-    <!-- Main Menu -->
-    {:else if !gameStarted}
-        <div class="main-menu">
-            <!-- Welcome Section -->
-            <div class="welcome-section">
-                <h2>🎮 Welcome back, {$gameStore.user.username}!</h2>
-                
-                {#if $gameStore.userProfile}
-                    <div class="quick-stats">
-                        <div class="stat-item">
-                            <span class="stat-value">{$gameStore.userProfile.user.totalGames}</span>
-                            <span class="stat-label">Games Played</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-value">{getWinRate($gameStore.userProfile.user.gamesWon, $gameStore.userProfile.user.totalGames)}%</span>
-                            <span class="stat-label">Win Rate</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-value">{$gameStore.userProfile.user.currentStreak || 0}</span>
-                            <span class="stat-label">Current Streak</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-value">{$gameStore.userProfile.user.estimatedElo || 800}</span>
-                            <span class="stat-label">ELO Rating</span>
-                        </div>
-                    </div>
-                {/if}
+    {#if $gameStore.user}
+      {#if gameStarted && $gameStore.currentGame}
+        <!-- Game Area -->
+        <div class="space-y-6">
+          <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 class="text-xl font-semibold text-foreground">♟️ vs Stockfish (Level {$gameStore.currentGame.difficulty})</h3>
+                <div class="text-sm text-muted-foreground">Status: <span class="font-medium text-foreground">{$gameStore.currentGame.status}</span> • Moves: <span class="font-medium text-foreground">{$gameStore.currentGame.movesCount}</span></div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-primary bg-card rounded-lg px-4 py-2 inline-block">⏱️ {gameActions.formatTime($gameStore.elapsedTime)}</div>
+                <div class="text-xs text-muted-foreground mt-1">Game Time</div>
+              </div>
             </div>
+          </div>
 
-            <!-- Game Setup -->
-            <div class="game-setup">
-                <h3>🏁 Start New Game</h3>
-                
-                <div class="difficulty-selector">
-                    <label for="difficulty">
-                        Stockfish Difficulty: <strong>{difficulty}</strong>
-                        <span class="difficulty-desc">
-                            {difficulty <= 5 ? 'Beginner' : difficulty <= 10 ? 'Intermediate' : difficulty <= 15 ? 'Advanced' : 'Expert'}
-                        </span>
-                    </label>
-                    <input 
-                        type="range" 
-                        id="difficulty" 
-                        bind:value={difficulty} 
-                        min="1" 
-                        max="20" 
-                        class="slider"
-                    />
-                    <div class="difficulty-range">
-                        <span>Easy (1)</span>
-                        <span>Master (20)</span>
-                    </div>
-                </div>
-
-                <button 
-                    on:click={startNewGame} 
-                    disabled={$gameStore.loading} 
-                    class="btn btn-success btn-large"
-                >
-                    🚀 Start Game (Level {difficulty})
-                </button>
+          <div class="p-4 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+            <div class="max-w-3xl mx-auto">
+              <ChessBoard lastMove={$gameStore.lastMove} allowMoves={$gameStore.currentGame.status === 'active'} />
             </div>
+          </div>
 
-            <!-- Menu Actions -->
-            <div class="menu-actions">
-                <button 
-                    on:click={() => showStats = !showStats} 
-                    class="btn btn-secondary"
-                >
-                    📊 {showStats ? 'Hide' : 'View'} Statistics
-                </button>
-                
-                <button 
-                    on:click={() => showLeaderboard = !showLeaderboard} 
-                    class="btn btn-secondary"
-                >
-                    🏆 {showLeaderboard ? 'Hide' : 'View'} Leaderboard
-                </button>
-            </div>
+          <div class="flex gap-3 justify-center">
+            <button class="h-11 px-5 rounded-full bg-card-80 text-foreground border border-border-50" on:click={resetGame}>🏠 Back to Menu</button>
+            <button class="h-11 px-5 rounded-full bg-primary text-white disabled:opacity-60" on:click={resignGame} disabled={$gameStore.currentGame.status !== 'active'}>🚩 Resign</button>
+          </div>
         </div>
-
-    <!-- Game in Progress -->
-    {:else}
-        <div class="game-area">
-            <!-- Game Header -->
-            <div class="game-header-info">
-                <div class="game-details">
-                    <h2>♟️ vs Stockfish (Level {$gameStore.currentGame?.difficulty})</h2>
-                    <p>Status: <strong>{$gameStore.currentGame?.status}</strong></p>
-                    <p>Moves: <strong>{$gameStore.currentGame?.movesCount}</strong></p>
+      {:else}
+        <!-- Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left Column: User Stats -->
+          <div class="space-y-6">
+            <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl text-center space-y-4">
+              <div class="text-6xl">♔</div>
+              <div>
+                <h3 class="text-xl font-semibold text-foreground mb-2">Vos Statistiques</h3>
+                <div class="space-y-3">
+                  <div class="flex justify-between items-center">
+                    <span class="text-muted-foreground">Parties jouées</span>
+                    <span class="px-2 py-1 rounded-md bg-secondary text-foreground font-semibold">{$gameStore.userProfile?.user.totalGames ?? 0}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-muted-foreground">Taux de victoire</span>
+                    <span class="px-2 py-1 rounded-md bg-primary text-white font-semibold">{getWinRate($gameStore.userProfile?.user.gamesWon ?? 0, $gameStore.userProfile?.user.totalGames ?? 0)}%</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-muted-foreground">Classement</span>
+                    <span class="px-2 py-1 rounded-md border border-border-50 font-semibold">{$gameStore.userProfile?.user.estimatedElo ?? 800}</span>
+                  </div>
                 </div>
-                
-                <div class="game-timer-large">
-                    <div class="timer-display">
-                        ⏱️ {gameActions.formatTime($gameStore.elapsedTime)}
-                    </div>
-                    <div class="timer-label">Game Time</div>
+                <div class="mt-4">
+                  <div class="text-sm text-muted-foreground mb-2">Progression</div>
+                  <div class="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div class="h-2 bg-primary" style="width: {getWinRate($gameStore.userProfile?.user.gamesWon ?? 0, $gameStore.userProfile?.user.totalGames ?? 0)}%"></div>
+                  </div>
                 </div>
+              </div>
             </div>
 
-            <!-- Chess Board -->
-            <div class="board-container">
-                <ChessBoard lastMove={$gameStore.lastMove} allowMoves={$gameStore.currentGame?.status === 'active'} />
-            </div>
-
-            <!-- Game Controls -->
-            <div class="game-controls">
-                <button on:click={resetGame} class="btn btn-secondary">
-                    🏠 Back to Menu
-                </button>
-                <button on:click={resignGame} class="btn btn-secondary" disabled={$gameStore.currentGame?.status !== 'active'}>
-                    🚩 Resign
-                </button>
-            </div>
-        </div>
-    {/if}
-
-    <!-- Statistics Panel -->
-    {#if showStats && $gameStore.userProfile}
-        <div class="stats-panel">
-            <h2>📊 Your Statistics</h2>
-            
-            <!-- Personal Records -->
-            {#if $gameStore.userProfile.records.length > 0}
-                <div class="records-section">
-                    <h3>🏆 Personal Records</h3>
-                    <div class="records-grid">
-                        {#each $gameStore.userProfile.records as record}
-                            <div class="record-card">
-                                <div class="record-level">Level {record.difficulty}</div>
-                                <div class="record-time">⏱️ {gameActions.formatTime(record.bestTimeSeconds)}</div>
-                                <div class="record-moves">♟️ {record.movesCount} moves</div>
-                            </div>
-                        {/each}
+            <!-- Recent Games (placeholder) -->
+            <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+              <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center"><span class="mr-2">♟</span>Parties Récentes</h3>
+              <div class="space-y-3">
+                {#each [
+                  { opponent: 'IA Niveau 3', result: 'Victoire', moves: '32', time: '15min' },
+                  { opponent: 'IA Niveau 2', result: 'Défaite', moves: '28', time: '12min' },
+                  { opponent: 'IA Niveau 4', result: 'Victoire', moves: '45', time: '22min' }
+                ] as game, i}
+                  <div class="flex justify-between items-center p-3 rounded-lg bg-card-80">
+                    <div>
+                      <div class="font-medium text-sm">{game.opponent}</div>
+                      <div class="text-xs text-muted-foreground">{game.moves} coups • {game.time}</div>
                     </div>
-                </div>
-            {/if}
-
-            <!-- Level Statistics -->
-            {#if $gameStore.userProfile.levelStats.length > 0}
-                <div class="level-stats-section">
-                    <h3>📈 Performance by Level</h3>
-                    <div class="level-stats-grid">
-                        {#each $gameStore.userProfile.levelStats as stats}
-                            <div class="level-stat-card">
-                                <div class="level-header">
-                                    <strong>Level {stats.difficulty}</strong>
-                                    <span class="win-rate">{getWinRate(stats.gamesWon, stats.gamesPlayed)}%</span>
-                                </div>
-                                <div class="level-details">
-                                    <p>{stats.gamesPlayed} games • {stats.gamesWon} wins</p>
-                                    <p>⏱️ Avg: {gameActions.formatTime(stats.averageTimeSeconds)}</p>
-                                    <p>♟️ Avg: {stats.averageMoves} moves</p>
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
-        </div>
-    {/if}
-
-    <!-- Leaderboard -->
-    {#if showLeaderboard && leaderboard.length > 0}
-        <div class="leaderboard">
-            <h2>🏆 Top Players</h2>
-            <div class="leaderboard-list">
-                {#each leaderboard as player, index}
-                    <div 
-                        class="leaderboard-item" 
-                        class:current-user={$gameStore.user && player.username === $gameStore.user.username}
-                    >
-                        <div class="rank">#{index + 1}</div>
-                        <div class="player-info">
-                            <strong>{player.username}</strong>
-                            <span class="player-stats">
-                                {player.gamesWon}/{player.totalGames} games
-                                {#if (player.currentStreak ?? 0) > 0}
-                                    • 🔥{player.currentStreak}
-                                {/if}
-                            </span>
-                        </div>
-                        <div class="player-elo">{player.estimatedElo} ELO</div>
-                    </div>
+                    <span class={`text-xs px-2 py-1 rounded-md ${game.result === 'Victoire' ? 'bg-primary text-white' : 'bg-card'}`}>{game.result}</span>
+                  </div>
                 {/each}
+              </div>
             </div>
+          </div>
+
+          <!-- Center Column: Game Setup -->
+          <div class="space-y-6">
+            <div class="p-8 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl text-center space-y-6">
+              <div class="text-5xl">⚔️</div>
+              <div>
+                <h3 class="text-xl font-semibold text-foreground mb-2">Nouvelle Partie</h3>
+                <p class="text-muted-foreground text-sm">Choisissez votre niveau de défi</p>
+              </div>
+
+              <!-- Difficulty Selector -->
+              <div class="space-y-4">
+                <div class="text-center">
+                  <div class="text-lg font-medium text-foreground mb-2">
+                    Difficulté: <span class="text-primary">{difficulty <= 5 ? 'Débutant' : difficulty <= 10 ? 'Facile' : difficulty <= 15 ? 'Moyen' : difficulty < 20 ? 'Difficile' : 'Expert'}</span>
+                  </div>
+                  <div class="px-2 md:px-6">
+                    <input type="range" bind:value={difficulty} min="1" max="20" step="1" class="w-full" />
+                  </div>
+                  <div class="flex justify-between text-xs text-muted-foreground mt-2">
+                    <span>Débutant</span>
+                    <span>Expert</span>
+                  </div>
+                </div>
+              </div>
+
+              <button class="w-full h-12 text-lg font-semibold rounded-full bg-primary text-white disabled:opacity-60" on:click={startNewGame} disabled={$gameStore.loading}>
+                <span class="mr-2">♔</span>
+                Commencer la Partie (Level {difficulty})
+              </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="grid grid-cols-2 gap-4">
+              <button class="h-16 rounded-xl border border-border-50 bg-transparent flex flex-col items-center justify-center space-y-1" on:click={() => showStats = !showStats}>
+                <span class="text-xl">📊</span>
+                <span class="text-sm">Statistiques</span>
+              </button>
+              <button class="h-16 rounded-xl border border-border-50 bg-transparent flex flex-col items-center justify-center space-y-1" on:click={() => showLeaderboard = !showLeaderboard}>
+                <span class="text-xl">🏆</span>
+                <span class="text-sm">Classement</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Column: Achievements & Learning -->
+          <div class="space-y-6">
+            <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+              <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center"><span class="mr-2">🏅</span>Succès</h3>
+              <div class="space-y-3">
+                {#each [
+                  { name: 'Première Victoire', icon: '🎯', unlocked: true },
+                  { name: '10 Parties', icon: '🔥', unlocked: true },
+                  { name: 'Maître Tactique', icon: '🧠', unlocked: false },
+                  { name: 'Roi des Échecs', icon: '👑', unlocked: false }
+                ] as achievement}
+                  <div class={`flex items-center space-x-3 p-2 rounded-lg ${achievement.unlocked ? 'bg-card-80' : 'bg-card-80 opacity-50'}`}>
+                    <span class="text-xl">{achievement.icon}</span>
+                    <span class="text-sm font-medium">{achievement.name}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+              <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center"><span class="mr-2">📚</span>Apprentissage</h3>
+              <div class="space-y-3">
+                {#each [
+                  { title: 'Tutoriel Débutant', subtitle: 'Apprenez les bases' },
+                  { title: 'Tactiques Avancées', subtitle: 'Perfectionnez votre jeu' },
+                  { title: 'Analyse de Parties', subtitle: 'Étudiez vos erreurs' }
+                ] as item}
+                  <button class="w-full text-left p-3 rounded-lg hover:bg-card">
+                    <div class="font-medium text-sm">{item.title}</div>
+                    <div class="text-xs text-muted-foreground">{item.subtitle}</div>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          </div>
         </div>
+
+        <!-- Toggled Panels -->
+        {#if showStats && $gameStore.userProfile}
+          <div class="mt-6 p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+            <h2 class="text-xl font-semibold mb-4">📊 Vos Statistiques Détaillées</h2>
+            {#if $gameStore.userProfile.records.length > 0}
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {#each $gameStore.userProfile.records as record}
+                  <div class="p-4 rounded-lg bg-card border border-border-50">
+                    <div class="font-semibold">Level {record.difficulty}</div>
+                    <div class="text-sm text-muted-foreground">⏱️ {gameActions.formatTime(record.bestTimeSeconds)}</div>
+                    <div class="text-sm text-muted-foreground">♟️ {record.movesCount} moves</div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            {#if $gameStore.userProfile.levelStats.length > 0}
+              <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {#each $gameStore.userProfile.levelStats as stats}
+                  <div class="p-4 rounded-lg bg-card border border-border-50">
+                    <div class="flex items-center justify-between mb-2">
+                      <strong>Level {stats.difficulty}</strong>
+                      <span class="px-2 py-1 rounded-md bg-primary text-white text-xs">{getWinRate(stats.gamesWon, stats.gamesPlayed)}%</span>
+                    </div>
+                    <div class="text-sm text-muted-foreground">{stats.gamesPlayed} games • {stats.gamesWon} wins</div>
+                    <div class="text-sm text-muted-foreground">⏱️ Avg: {gameActions.formatTime(stats.averageTimeSeconds)}</div>
+                    <div class="text-sm text-muted-foreground">♟️ Avg: {stats.averageMoves} moves</div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+        {#if showLeaderboard && leaderboard.length > 0}
+          <div class="mt-6 p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+            <h2 class="text-xl font-semibold mb-4">🏆 Top Players</h2>
+            <div>
+              {#each leaderboard as player, index}
+                <div class="py-3 flex items-center justify-between border-t border-border-50 first:border-t-0">
+                  <div class="flex items-center gap-4">
+                    <div class="w-8 text-primary font-bold">#{index + 1}</div>
+                    <div>
+                      <div class="font-semibold">{player.username}</div>
+                      <div class="text-xs text-muted-foreground">{player.gamesWon}/{player.totalGames} games {#if (player.currentStreak ?? 0) > 0}• 🔥{player.currentStreak}{/if}</div>
+                    </div>
+                  </div>
+                  <div class="font-semibold text-foreground">{player.estimatedElo} ELO</div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {/if}
     {/if}
 
-    <!-- Promotion Notification -->
+    <!-- Promotion banner -->
     {#if $gameStore.pendingPromotion?.isActive}
-        <div class="promotion-notification">
-            🎯 Pawn promotion in progress...
-        </div>
+      <div class="fixed top-4 right-4 rounded-xl bg-primary text-white px-4 py-2 shadow-2xl">🎯 Pawn promotion in progress...</div>
     {/if}
-</main>
 
-<style>
-    .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
+    <!-- Loading / Error -->
+    {#if $gameStore.loading}
+      <div class="mt-6 p-4 rounded-lg bg-card border border-border-50 text-center font-semibold">⏳ Loading...</div>
+    {/if}
+    {#if $gameStore.error}
+      <div class="mt-6 p-4 rounded-lg bg-card border border-border-50 text-center font-semibold text-red-600">❌ {$gameStore.error}</div>
+    {/if}
 
-    /* Header Styles */
-    .game-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 25px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 20px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-
-    .user-info {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-    }
-
-    .elo-badge {
-        background: rgba(255,255,255,0.2);
-        padding: 6px 12px;
-        border-radius: 15px;
-        font-size: 14px;
-        font-weight: bold;
-    }
-
-    .game-timer {
-        background: #ff6b6b;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 25px;
-        font-weight: bold;
-        font-size: 18px;
-        animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-    }
-
-    /* Quick Stats */
-    .quick-stats {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
-        margin: 20px 0;
-    }
-
-    .stat-item {
-        text-align: center;
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-
-    .stat-value {
-        display: block;
-        font-size: 24px;
-        font-weight: bold;
-        color: #667eea;
-    }
-
-    .stat-label {
-        display: block;
-        font-size: 12px;
-        color: #666;
-        margin-top: 5px;
-    }
-
-    /* Game Timer Large */
-    .game-timer-large {
-        text-align: center;
-    }
-
-    .timer-display {
-        font-size: 36px;
-        font-weight: bold;
-        color: #ff6b6b;
-        background: white;
-        padding: 15px 30px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        display: inline-block;
-    }
-
-    .timer-label {
-        font-size: 14px;
-        color: #666;
-        margin-top: 8px;
-    }
-
-    /* Difficulty Selector */
-    .difficulty-selector {
-        margin: 25px 0;
-        padding: 20px;
-        background: #f8f9fa;
-        border-radius: 15px;
-    }
-
-    .difficulty-desc {
-        color: #667eea;
-        font-weight: bold;
-        margin-left: 10px;
-    }
-
-    .slider {
-        width: 100%;
-        height: 8px;
-        border-radius: 5px;
-        background: #ddd;
-        outline: none;
-        margin: 15px 0;
-    }
-
-    .difficulty-range {
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        color: #666;
-    }
-
-    /* Records Grid */
-    .records-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 15px;
-        margin: 20px 0;
-    }
-
-    .record-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
-    }
-
-    .record-card:hover {
-        transform: translateY(-5px);
-    }
-
-    .record-level {
-        font-weight: bold;
-        color: #667eea;
-        margin-bottom: 10px;
-    }
-
-    /* Level Stats */
-    .level-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: 15px;
-        margin: 20px 0;
-    }
-
-    .level-stat-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-
-    .level-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-
-    .win-rate {
-        background: #28a745;
-        color: white;
-        padding: 4px 8px;
-        border-radius: 10px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-
-    /* Leaderboard */
-    .leaderboard {
-        background: white;
-        padding: 30px;
-        border-radius: 20px;
-        margin: 30px 0;
-        box-shadow: 0 6px 25px rgba(0,0,0,0.1);
-    }
-
-    .leaderboard-item {
-        display: grid;
-        grid-template-columns: 50px 1fr 100px;
-        align-items: center;
-        padding: 15px;
-        border-bottom: 1px solid #eee;
-        transition: background 0.2s;
-    }
-
-    .leaderboard-item:hover {
-        background: #f8f9fa;
-    }
-
-    .leaderboard-item.current-user {
-        background: linear-gradient(135deg, #667eea20, #764ba220);
-        font-weight: bold;
-        border-radius: 10px;
-    }
-
-    .rank {
-        font-size: 18px;
-        font-weight: bold;
-        color: #667eea;
-    }
-
-    .player-stats {
-        font-size: 12px;
-        color: #666;
-        display: block;
-    }
-
-    .player-elo {
-        font-weight: bold;
-        color: #28a745;
-    }
-
-    /* Promotion Notification */
-    .promotion-notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #667eea;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        z-index: 999;
-        animation: slideInRight 0.3s ease;
-    }
-
-    @keyframes slideInRight {
-        from {
-            transform: translateX(100px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    /* Buttons */
-    .btn {
-        padding: 12px 24px;
-        border: none;
-        border-radius: 25px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s;
-        text-decoration: none;
-        display: inline-block;
-    }
-
-    .btn-large {
-        padding: 18px 36px;
-        font-size: 18px;
-    }
-
-    .btn-primary {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-    }
-
-    .btn-success {
-        background: linear-gradient(135deg, #56ab2f, #a8e6cf);
-        color: white;
-    }
-
-    .btn-success:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(86, 171, 47, 0.3);
-    }
-
-    .btn-secondary {
-        background: linear-gradient(135deg, #bdc3c7, #2c3e50);
-        color: white;
-    }
-
-    .btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-    }
-
-    /* Panels */
-    .stats-panel, .user-setup, .main-menu, .game-area {
-        background: white;
-        padding: 30px;
-        border-radius: 20px;
-        margin: 30px 0;
-        box-shadow: 0 6px 25px rgba(0,0,0,0.1);
-    }
-
-    .input {
-        width: 100%;
-        padding: 15px;
-        border: 2px solid #ddd;
-        border-radius: 15px;
-        font-size: 16px;
-        margin: 10px 0;
-    }
-
-    .input:focus {
-        border-color: #667eea;
-        outline: none;
-    }
-
-    .loading, .error {
-        padding: 15px;
-        border-radius: 10px;
-        margin: 20px 0;
-        text-align: center;
-        font-weight: bold;
-    }
-
-    .loading {
-        background: #e3f2fd;
-        color: #1976d2;
-    }
-
-    .error {
-        background: #ffebee;
-        color: #c62828;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        .quick-stats {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        
-        .records-grid, .level-stats-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
+    <!-- Bottom decoration -->
+    <div class="text-center mt-12 opacity-20 select-none">
+      <div class="flex justify-center space-x-4 text-2xl">
+        <span>♜</span>
+        <span>♞</span>
+        <span>♝</span>
+        <span>♛</span>
+        <span>♚</span>
+        <span>♝</span>
+        <span>♞</span>
+        <span>♜</span>
+      </div>
+    </div>
+  </div>
+</div>
