@@ -1,7 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import type { ChessSquare } from '$lib/types/chess';
-    import ChessPiece from './ChessPiece.svelte';
+    import ChessPiece from './oldChessPiece.svelte';
     
     /**
      * Chess square component - represents a single square on the chessboard

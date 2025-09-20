@@ -2,8 +2,8 @@
     import { createEventDispatcher, onMount } from 'svelte';
     import { get } from 'svelte/store';
     import type { ChessSquare as ChessSquareType, ChessPiece, PromotionChoice } from '$lib/types/chess';
-    import ChessSquareComponent from './ChessSquare.svelte';
-    import BoardCoordinates from './BoardCoordinates.svelte';
+    import ChessSquareComponent from './oldChessSquare.svelte';
+    import BoardCoordinates from './oldBoardCoordinates.svelte';
     import PromotionDialog from './PromotionDialog.svelte';
     import { ChessService } from '$lib/services/chessService';
     import { gameStore, gameActions } from '$lib/stores/gameStore';

@@ -2,8 +2,13 @@
     import { onMount, onDestroy } from 'svelte';
     import { gameStore, gameActions } from '$lib/stores/gameStore';
     import { ChessService } from '$lib/services/chessService';
-    import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
-    
+  //  import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
+    import ChessGround from '$lib/components/ChessBoard/ChessGround.svelte';   // ⟵ nouveau
+    const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+    function onSelect(e) { console.log('select', e.detail); }
+    function onMove(e) { console.log('move', e.detail); }
+
     let username = '';
     let difficulty = 5;
     let gameStarted = false;
@@ -358,7 +363,14 @@
 
             <!-- Chess Board -->
             <div class="board-container">
-                <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} />
+              //  <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} />
+              <ChessGround
+                fen={$gameStore.currentGame?.fen ?? START_FEN}
+                orientation="white"
+                viewOnly={$gameStore.currentGame?.status !== 'active'}
+                on:move={(e) => makeMove(e.detail.from, e.detail.to)}
+                on:select={(e) => { /* on branchera les surlignages plus tard */ }}
+              />
             </div>
 
             <!-- Game Controls -->
