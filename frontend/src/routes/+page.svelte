@@ -18,9 +18,11 @@
     try {
       const user = await ChessService.createUser(username.trim());
       gameActions.setUser(user);
+      localStorage.setItem('userName', JSON.stringify(user));
+
       // Load profile to keep experience consistent
       try {
-        const profile: UserProfile = await ChessService.getUserProfile(user.id);
+        const profile: UserProfile = await ChessService.getUserProfile(user.username);
         gameActions.setUserProfile(profile);
       } catch (e) { if (import.meta.env.DEV) console.error(e); }
       // Leaderboard is local on dashboard; skip storing here

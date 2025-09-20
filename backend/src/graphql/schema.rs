@@ -18,6 +18,34 @@ impl QueryRoot {
         Ok(user)
     }
 
+    async fn user_by_username(&self, ctx: &Context<'_>, username: String) -> Result<Option<User>, Error> {
+        let db = ctx.data::<SqlitePool>()?;
+        // Query a single user by username and map to our User struct
+        let row = sqlx::query!(
+            "SELECT id, username, total_games, games_won, created_at, \
+                    total_play_time_seconds, current_streak, best_streak, estimated_elo \
+             FROM users WHERE username = ? LIMIT 1",
+            username
+        )
+        .fetch_optional(db)
+        .await
+        .map_err(|e| Error::new(format!("Database error: {}", e)))?;
+
+        let user = row.map(|row| User {
+            id: row.id,
+            username: row.username,
+            total_games: row.total_games as i32,
+            games_won: row.games_won as i32,
+            created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(row.created_at, chrono::Utc),
+            total_play_time_seconds: row.total_play_time_seconds.map(|v| v as i32),
+            current_streak: row.current_streak.map(|v| v as i32),
+            best_streak: row.best_streak.map(|v| v as i32),
+            estimated_elo: row.estimated_elo.map(|v| v as i32),
+        });
+
+        Ok(user)
+    }
+
     /// Retrieves a specific game by its ID
     /// Returns None if game doesn't exist
     async fn game(&self, ctx: &Context<'_>, game_id: String) -> Result<Option<Game>, Error> {
@@ -39,11 +67,11 @@ impl QueryRoot {
         let limit = limit.unwrap_or(10);
         
         let rows = sqlx::query!(
-            "SELECT id, username, total_games, games_won, created_at, 
-                    total_play_time_seconds, current_streak, best_streak, estimated_elo 
-             FROM users 
-             WHERE estimated_elo IS NOT NULL 
-             ORDER BY estimated_elo DESC 
+            "SELECT id, username, total_games, games_won, created_at, \
+                    total_play_time_seconds, current_streak, best_streak, estimated_elo \
+             FROM users \
+             WHERE estimated_elo IS NOT NULL \
+             ORDER BY estimated_elo DESC \
              LIMIT ?",
             limit
         )
@@ -97,6 +125,33 @@ impl MutationRoot {
     /// Returns existing user if username already exists
     async fn create_user(&self, ctx: &Context<'_>, username: String) -> Result<User, Error> {
         let db = ctx.data::<SqlitePool>()?;
+        
+        // Check if user exists (use query! + manual mapping to avoid sqlx type mismatch i64->i32)
+        let row = sqlx::query!(
+            "SELECT id, username, total_games, games_won, created_at, total_play_time_seconds, current_streak, best_streak, estimated_elo \
+             FROM users WHERE username = ? LIMIT 1",
+            username
+        )
+        .fetch_optional(db)
+        .await
+        .map_err(|e| Error::new(format!("Database error: {}", e)))?;
+
+        if let Some(row) = row {
+            let user = User {
+                id: row.id,
+                username: row.username,
+                total_games: row.total_games as i32,
+                games_won: row.games_won as i32,
+                created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(row.created_at, chrono::Utc),
+                total_play_time_seconds: row.total_play_time_seconds.map(|v| v as i32),
+                current_streak: row.current_streak.map(|v| v as i32),
+                best_streak: row.best_streak.map(|v| v as i32),
+                estimated_elo: row.estimated_elo.map(|v| v as i32),
+            };
+            return Ok(user);
+        }
+
+        // If not, create and insert
         let user = UserService::create_user(username);
         create_user(db, &user).await?;
         Ok(user)
