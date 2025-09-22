@@ -20,49 +20,74 @@ use std::env;
 use graphql::{QueryRoot, MutationRoot};
 
 /// Main application entry point
-/// Sets up the GraphQL server with SQLite database and CORS support
 #[tokio::main]
 async fn main() {
+    println!("🟡 Starting Chess Backend...");
+
+    // Charger les variables d'environnement
     dotenv().ok();
-    
-    let cors_origin = env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:chess.db".to_string());
-    
-    // Connect to database
+    println!("✅ .env chargé (ou ignoré si absent)");
+
+    // Récupération des variables
+    let cors_origin = env::var("CORS_ORIGIN")
+        .unwrap_or_else(|_| {
+            println!("⚠️  CORS_ORIGIN non défini, utilisation de la valeur par défaut");
+            "http://localhost:5173".to_string()
+        });
+    println!("🌍 CORS_ORIGIN = {}", cors_origin);
+
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| {
+            println!("⚠️  DATABASE_URL non défini, utilisation de la valeur par défaut");
+            "sqlite:chess.db".to_string()
+        });
+    println!("🗄️ DATABASE_URL = {}", database_url);
+
+    // Connexion à la base
+    println!("⏳ Connexion à la base de données...");
     let pool = SqlitePool::connect(&database_url)
         .await
-        .expect("Failed to connect to database");
+        .expect("❌ Échec de la connexion à la base");
+    println!("✅ Connecté à la base de données");
 
-    // Run migrations
+    // Exécution des migrations
+    println!("⏳ Lancement des migrations...");
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("Failed to run migrations");
+        .expect("❌ Échec des migrations");
+    println!("✅ Migrations exécutées avec succès");
 
-    // Create GraphQL schema
+    // Création du schéma GraphQL
+    println!("⏳ Construction du schéma GraphQL...");
     let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(pool.clone())
         .finish();
+    println!("✅ Schéma GraphQL prêt");
 
-    // Configure CORS for frontend access
+    // Config CORS
+    println!("⏳ Configuration CORS...");
     let cors = CorsLayer::new()
         .allow_origin(cors_origin.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(Any);
+    println!("✅ CORS configuré");
 
-    // Build the application routes
+    // Définition des routes
+    println!("⏳ Construction des routes...");
     let app = Router::new()
         .route("/", get(graphiql))
         .route("/graphql", post(graphql_handler))
         .layer(Extension(schema))
         .layer(cors);
+    println!("✅ Routes prêtes");
 
-    // Start the server
+    // Démarrage du serveur
+    println!("🚀 Lancement du serveur sur 0.0.0.0:8080...");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("🚀 Chess GraphQL API ready at http://localhost:8080");
-    println!("📊 GraphiQL IDE available at http://localhost:8080");
-    println!("🎯 Ready to serve chess games!");
+    println!("📡 Serveur en écoute sur http://localhost:8080");
+    println!("📊 GraphiQL IDE dispo sur http://localhost:8080");
+    println!("🎯 Backend prêt à gérer des parties d'échecs !");
     
     axum::serve(listener, app).await.unwrap();
 }
