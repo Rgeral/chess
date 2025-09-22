@@ -14,5 +14,6 @@ RUN ln -sf /usr/games/stockfish /usr/local/bin/stockfish || echo "Could not crea
 WORKDIR /app
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
 COPY ./migrations ./migrations
+RUN mkdir -p /app/data && chown -R root:root /app/data && chmod 775 /app/data
 EXPOSE 8080
 CMD ["./chess-backend"]
