@@ -3,36 +3,14 @@ FROM rust:1.80-slim as builder
 
 WORKDIR /app
 
-# Installer nightly
 RUN rustup install nightly && rustup default nightly
 
-# Copier seulement les manifests d'abord pour optimiser le cache
-COPY Cargo.toml Cargo.lock ./
+# Copier seulement Cargo.toml (pas Cargo.lock)
+COPY Cargo.toml ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo +nightly build --release || true
 
-# Copier le reste du code
+# Copier le reste
 COPY . .
 
-# Build avec nightly
 RUN cargo +nightly build --release
-
-# ---- Runtime ----
-FROM debian:bookworm-slim
-
-# Installer dépendances runtime (stockfish, sqlite, ca-certificates)
-RUN apt-get update && \
-    apt-get install -y stockfish sqlite3 ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copier le binaire
-COPY --from=builder /app/target/release/chess-backend /app/chess-backend
-COPY ./migrations ./migrations
-
-# Créer dossier data avec droits
-RUN mkdir -p /app/data && chmod 777 /app/data
-
-EXPOSE 8080
-CMD ["./chess-backend"]
