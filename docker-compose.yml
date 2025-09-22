@@ -6,6 +6,9 @@ services:
       - "8080:8080"
     volumes:
       - ./backend/chess.db:/app/chess.db
+    environment:
+      DATABASE_URL: sqlite:/app/chess.db
+      CORS_ORIGIN: https://chess.rdevs.fr
     restart: unless-stopped
 
   frontend:
