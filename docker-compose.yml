@@ -3,15 +3,20 @@ version: "3.9"
 services:
   backend:
     build: ./backend
+    container_name: chess-backend
     ports:
       - "8080:8080"
     volumes:
+      - ./backend:/app
       - ./backend/data:/app/data
     environment:
-      DATABASE_URL: sqlite:/app/data/chess.db
-      CORS_ORIGIN: https://chess.rdevs.fr
-      RUST_LOG: debug
-    restart: unless-stopped
+      DATABASE_URL: "sqlite:///app/data/chess.db"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/graphql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 
   frontend:
     build: ./frontend
