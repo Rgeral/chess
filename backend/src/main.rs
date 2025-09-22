@@ -16,83 +16,89 @@ use dotenv::dotenv;
 use sqlx::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 use std::env;
-
+use tracing::{error, info};
+use tracing_subscriber;
 use graphql::{QueryRoot, MutationRoot};
 
 /// Main application entry point
 #[tokio::main]
 async fn main() {
-    println!("🟡 Starting Chess Backend...");
+    // Init logs
+    tracing_subscriber::fmt()
+        .with_env_filter("info")
+        .init();
 
-    // Charger les variables d'environnement
+    info!("🔧 Starting Chess Backend...");
     dotenv().ok();
-    println!("✅ .env chargé (ou ignoré si absent)");
 
-    // Récupération des variables
+    // Load env vars
     let cors_origin = env::var("CORS_ORIGIN")
-        .unwrap_or_else(|_| {
-            println!("⚠️  CORS_ORIGIN non défini, utilisation de la valeur par défaut");
-            "http://localhost:5173".to_string()
-        });
-    println!("🌍 CORS_ORIGIN = {}", cors_origin);
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+    info!("🌍 CORS_ORIGIN = {}", cors_origin);
 
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| {
-            println!("⚠️  DATABASE_URL non défini, utilisation de la valeur par défaut");
-            "sqlite:chess.db".to_string()
-        });
-    println!("🗄️ DATABASE_URL = {}", database_url);
+        .unwrap_or_else(|_| "sqlite:chess.db".to_string());
+    info!("🗄️ DATABASE_URL = {}", database_url);
 
-    // Connexion à la base
-    println!("⏳ Connexion à la base de données...");
-    let pool = SqlitePool::connect(&database_url)
-        .await
-        .expect("❌ Échec de la connexion à la base");
-    println!("✅ Connecté à la base de données");
+    // Connect to database
+    info!("🔌 Connecting to database...");
+    let pool = match SqlitePool::connect(&database_url).await {
+        Ok(pool) => {
+            info!("✅ Connected to database");
+            pool
+        }
+        Err(e) => {
+            error!("❌ Failed to connect to database: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    // Exécution des migrations
-    println!("⏳ Lancement des migrations...");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("❌ Échec des migrations");
-    println!("✅ Migrations exécutées avec succès");
+    // Run migrations
+    info!("📦 Running migrations...");
+    if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
+        error!("❌ Failed to run migrations: {}", e);
+        std::process::exit(1);
+    }
+    info!("✅ Migrations applied");
 
-    // Création du schéma GraphQL
-    println!("⏳ Construction du schéma GraphQL...");
+    // Create GraphQL schema
+    info!("🔧 Building GraphQL schema...");
     let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(pool.clone())
         .finish();
-    println!("✅ Schéma GraphQL prêt");
+    info!("✅ GraphQL schema ready");
 
-    // Config CORS
-    println!("⏳ Configuration CORS...");
+    // Configure CORS
+    info!("🔧 Configuring CORS...");
     let cors = CorsLayer::new()
         .allow_origin(cors_origin.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(Any);
-    println!("✅ CORS configuré");
+    info!("✅ CORS configured");
 
-    // Définition des routes
-    println!("⏳ Construction des routes...");
+    // Build routes
     let app = Router::new()
         .route("/", get(graphiql))
         .route("/graphql", post(graphql_handler))
         .layer(Extension(schema))
         .layer(cors);
-    println!("✅ Routes prêtes");
 
-    // Démarrage du serveur
-    println!("🚀 Lancement du serveur sur 0.0.0.0:8080...");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("📡 Serveur en écoute sur http://localhost:8080");
-    println!("📊 GraphiQL IDE dispo sur http://localhost:8080");
-    println!("🎯 Backend prêt à gérer des parties d'échecs !");
-    
-    axum::serve(listener, app).await.unwrap();
+    // Start server
+    info!("🚀 Binding server on 0.0.0.0:8080 ...");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
+        .await
+        .expect("❌ Failed to bind port 8080");
+
+    info!("✅ Server bound successfully!");
+    info!("🚀 Chess GraphQL API ready at http://0.0.0.0:8080/graphql");
+    info!("📊 GraphiQL IDE available at http://0.0.0.0:8080");
+
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("❌ Server crashed: {}", e);
+    }
 }
 
-/// Serves the GraphiQL IDE for testing GraphQL queries
+/// Serves the GraphiQL IDE
 async fn graphiql() -> Html<String> {
     Html(GraphiQLSource::build().endpoint("/graphql").finish())
 }
