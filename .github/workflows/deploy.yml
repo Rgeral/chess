@@ -35,7 +35,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /opt/chess/chess
+            cd /home/rgeral/chess/chess
             docker-compose down -v --remove-orphans
             docker system prune -af
             docker volume prune -f
