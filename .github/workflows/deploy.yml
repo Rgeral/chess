@@ -26,7 +26,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: "."
-          target: "/opt/chess/chess"
+          target: "/home/rgeral/chess/chess"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
