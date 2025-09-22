@@ -22,7 +22,7 @@ jobs:
       - name: Copy files to server via SSH
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 10.0.0.3
+          host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: "."
@@ -31,7 +31,7 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 10.0.0.3
+          host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
