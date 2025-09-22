@@ -1,14 +1,15 @@
+version: "3.9"
+
 services:
   backend:
     build: ./backend
     ports:
       - "8080:8080"
     volumes:
-      - db_data:/app/data
+      - ./backend/data:/app/data
     environment:
-      DATABASE_URL: sqlite:/app/data/chess.db
+      DATABASE_URL: sqlite:///app/data/chess.db
       CORS_ORIGIN: https://chess.rdevs.fr
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && ./chess-backend"
     restart: unless-stopped
 
   frontend:
@@ -18,6 +19,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  db_data:

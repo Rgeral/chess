@@ -1,19 +1,37 @@
-# backend/Dockerfile
-FROM rustlang/rust:nightly as builder
+# ----------- BUILD STAGE -----------
+FROM rust:nightly AS builder
 
 WORKDIR /app
 COPY . .
 RUN cargo build --release
 
-FROM rustlang/rust:nightly
-RUN apt-get update && apt-get install -y stockfish sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
-# Vérifier où Stockfish est installé et créer un lien symbolique si nécessaire
+# ----------- RUNTIME STAGE -----------
+FROM debian:bookworm-slim
+
+# Installer stockfish, sqlite et certifs
+RUN apt-get update && apt-get install -y \
+    stockfish \
+    sqlite3 \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Vérification de stockfish
 RUN which stockfish || echo "Stockfish not found in PATH"
 RUN ls -la /usr/games/stockfish || echo "Stockfish not found in /usr/games/"
 RUN ln -sf /usr/games/stockfish /usr/local/bin/stockfish || echo "Could not create symlink"
+
 WORKDIR /app
+
+# Copier le binaire compilé
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
+
+# Copier les migrations SQLx
 COPY ./migrations ./migrations
-RUN mkdir -p /app/data && chown -R root:root /app/data && chmod 775 /app/data
+
+# Créer le dossier de la DB
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 EXPOSE 8080
-CMD ["./chess-backend"]
+
+# Lancer migrations puis le backend
+CMD ["sh", "-c", "sqlx migrate run && ./chess-backend"]
