@@ -6,7 +6,10 @@ WORKDIR /app
 # Installer Rust nightly
 RUN rustup install nightly && rustup default nightly
 
-# Copier seulement Cargo.toml (pas Cargo.lock si tu veux)
+# Installer sqlx-cli (sqlite uniquement, pas besoin de Postgres/MySQL)
+RUN cargo install sqlx-cli --no-default-features --features sqlite
+
+# Copier seulement Cargo.toml pour build des deps en cache
 COPY Cargo.toml ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo +nightly build --release || true
@@ -29,10 +32,11 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copier le binaire compilé
+# Copier sqlx-cli et le backend depuis builder
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
 
-# Copier les migrations si besoin
+# Copier les migrations
 COPY ./migrations ./migrations
 
 # Créer dossier data (pour SQLite)

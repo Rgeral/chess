@@ -38,4 +38,6 @@ jobs:
             cd /home/rgeral/chess/chess
             docker-compose down --remove-orphans
             docker system prune -af
-            docker-compose up --build -d
+            docker-compose build
+            docker-compose run --rm backend sqlx migrate run
+            docker-compose up -d
