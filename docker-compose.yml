@@ -7,9 +7,9 @@ services:
     volumes:
       - ./backend/data:/app/data
     environment:
-      DATABASE_URL: sqlite:///app/data/chess.db
-      CORS_ORIGIN: https://chess.rdevs.fr
-      RUST_LOG: debug
+      DATABASE_URL: "sqlite:///app/data/chess.db"
+      CORS_ORIGIN: "https://chess.rdevs.fr"
+      RUST_LOG: "debug"
     restart: unless-stopped
 
   frontend:

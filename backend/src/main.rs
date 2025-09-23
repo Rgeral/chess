@@ -14,19 +14,40 @@ use async_graphql::{http::GraphiQLSource, EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use dotenv::dotenv;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
+use std::str::FromStr;
 use tower_http::cors::{Any, CorsLayer};
 use std::env;
-use tracing::{error, info};
-use tracing_subscriber;
+use tracing::{error, info, warn};
+use tracing_subscriber::{self, EnvFilter};
 use graphql::{QueryRoot, MutationRoot};
+use std::fs::{OpenOptions};
+use std::io::Write;
 
 /// Main application entry point
 #[tokio::main]
 async fn main() {
-    // Init logs
+    // Init logs le plus tôt possible
+    // Respecte RUST_LOG si présent, sinon défaut à `info`
+    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt()
-        .with_env_filter("info")
+        .with_env_filter(EnvFilter::new(log_filter))
+        .with_ansi(false)
         .init();
+
+    // Messages très précoces au cas où le logger ne s’initialise pas
+    eprintln!("[startup] chess-backend: démarrage main()…");
+    println!("[startup] stdout prêt");
+
+    // Trace persistante sur disque pour diagnostiquer les sorties silencieuses
+    if let Ok(mut f) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/app/data/boot.log")
+    {
+        let _ = writeln!(f, "{} - main() start", chrono::Utc::now());
+        let _ = f.flush();
+    }
 
     info!("🔧 Starting Chess Backend...");
     dotenv().ok();
@@ -42,7 +63,15 @@ async fn main() {
 
     // Connect to database
     info!("🔌 Connecting to database...");
-    let pool = match SqlitePool::connect(&database_url).await {
+    let connect_opts = match SqliteConnectOptions::from_str(&database_url) {
+        Ok(opts) => opts.create_if_missing(true),
+        Err(e) => {
+            error!("❌ Invalid DATABASE_URL: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let pool = match SqlitePool::connect_with(connect_opts).await {
         Ok(pool) => {
             info!("✅ Connected to database");
             pool
@@ -93,8 +122,19 @@ async fn main() {
     info!("🚀 Chess GraphQL API ready at http://0.0.0.0:8080/graphql");
     info!("📊 GraphiQL IDE available at http://0.0.0.0:8080");
 
-    if let Err(e) = axum::serve(listener, app).await {
-        error!("❌ Server crashed: {}", e);
+    // Démarre le serveur HTTP
+    match axum::serve(listener, app).await {
+        Ok(()) => {
+            // En théorie ne se produit qu’en arrêt gracieux. Si ça arrive au lancement, on veut le voir.
+            warn!("⚠️ Server exited gracefully (unexpected early exit)");
+            // Évite une sortie silencieuse et garde le conteneur vivant pour inspection
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        }
+        Err(e) => {
+            error!("❌ Server crashed: {}", e);
+        }
     }
 }
 
