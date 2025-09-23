@@ -1,7 +1,8 @@
 import { GraphQLClient } from 'graphql-request';
 
-const apiUrl = import.meta.env.VITE_GRAPHQL_API_URL;
-
+// Utilise la variable d'env si définie, sinon fallback sur un chemin relatif
+// qui sera proxyé par Nginx vers le backend (/graphql -> backend:8080/graphql)
+const apiUrl = import.meta.env.VITE_GRAPHQL_API_URL || '/graphql';
 
 export const graphqlClient = new GraphQLClient(apiUrl, {
     headers: {
