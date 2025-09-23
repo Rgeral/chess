@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./backend/data:/app/data
+      - chess_db:/app/data
     environment:
       DATABASE_URL: "sqlite:///app/data/chess.db"
       CORS_ORIGIN: "https://chess.rdevs.fr"
@@ -19,3 +19,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  chess_db:
+    driver: local

@@ -25,7 +25,13 @@ jobs:
           host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "."
+          source: |
+            ./backend/**
+            ./frontend/**
+            ./docker-compose.yml
+            ./docker-compose-stockfish.yml
+            ./README.md
+            !./backend/data/**
           target: "/home/rgeral/chess/chess"
 
       - name: Deploy via SSH
@@ -36,8 +42,6 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/rgeral/chess/chess
-            docker-compose down --remove-orphans
-            docker system prune -af
+            docker-compose down --remove-orphans || true
             docker-compose build
-            docker-compose run --rm backend sqlx migrate run
-            docker-compose up -d
+            docker-compose up -d --remove-orphans
