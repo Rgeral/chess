@@ -20,14 +20,13 @@ jobs:
           sudo wg-quick up ./wg0.conf
 
       - name: Copy files to server via SSH
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1
         with:
           host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "."
-          exclude: |
-            backend/data/**
+          source: "backend,frontend,docker-compose.yml,docker-compose-stockfish.yml,README.md"
+          exclude: "backend/data,backend/data/**,./backend/data,./backend/data/**"
           target: "/home/rgeral/chess/chess"
 
       - name: Deploy via SSH
