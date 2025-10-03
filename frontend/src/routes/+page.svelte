@@ -1,9 +1,11 @@
-<script>
+<script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { gameStore, gameActions } from '$lib/stores/gameStore';
     import { ChessService } from '$lib/services/chessService';
-  //  import ChessBoard from '$lib/components/ChessBoard/ChessBoard.svelte';
-    import ChessGround from '$lib/components/ChessBoard/ChessGround.svelte';   // ⟵ nouveau
+    import ChessGround from '$lib/components/ChessBoard/ChessGround.svelte';
+    import PromotionDialog from '$lib/components/ChessBoard/PromotionDialog.svelte';
+    import { getPossibleMoves } from '$lib/services/chessMoves';
+    import type { ChessSquare, ChessPiece } from '$lib/types/chess';
     const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
     function onSelect(e) { console.log('select', e.detail); }
@@ -15,6 +17,147 @@
     let showStats = false;
     let showLeaderboard = false;
     let leaderboard = [];
+
+    // Reference to the ChessGround wrapper instance (bind:this)
+    let chessgroundRef: any = null;
+    let lastSyncedLastMove: { from: string; to: string } | null = null;
+    // Local cache for last selection dests to validate moves synchronously
+    let lastSelectedFrom: string | null = null;
+    let lastSelectedDests: string[] = [];
+
+    // Pending promotion state local to the page
+    let pendingPromotion: { from: string; to: string } | null = null;
+
+    // Helper: detect a pawn promotion client-side (simple check)
+    function isPawnPromotion(from: string, to: string): boolean {
+        if (!from || !to) return false;
+        const fromRank = parseInt(from[1]);
+        const toRank = parseInt(to[1]);
+        // Quick check: moving to last rank
+        return (fromRank === 7 && toRank === 8) || (fromRank === 2 && toRank === 1);
+    }
+
+    // Return which side is to move from FEN
+    function turnFromFen(fen: string): 'white' | 'black' {
+        if (!fen) return 'white';
+        const parts = fen.split(' ');
+        return (parts[1] === 'w') ? 'white' : 'black';
+    }
+
+    function findSquareById(board: ChessSquare[][], id: string): ChessSquare | null {
+        for (const row of board) {
+            for (const sq of row) {
+                if (`${sq.file}${sq.rank}` === id) return sq;
+            }
+        }
+        return null;
+    }
+
+    async function getPossibleMovesForSquare(squareId: string): Promise<string[]> {
+        try {
+            const fen = $gameStore.currentGame?.fen ?? START_FEN;
+            const board = ChessService.parseFEN(fen);
+            const square = findSquareById(board, squareId);
+            if (!square) return [];
+            // Ensure it's the correct side to move
+            const toMove = turnFromFen(fen);
+            if (!square.piece || square.piece.color !== toMove) return [];
+            // call local move generator
+            const moves = getPossibleMoves(board, square, fen);
+            return moves || [];
+        } catch (e) {
+            console.error('Failed to compute possible moves for', squareId, e);
+            return [];
+        }
+    }
+
+    // Handler for selection on the chessground board -> request and show destinations
+    async function onSelectFromBoard(e) {
+        const from = e.detail.square;
+        console.log('[BOARD] select', from);
+        gameActions.selectSquare(from);
+        // Only compute/show dests if it's the piece color to move
+        const fen = $gameStore.currentGame?.fen ?? START_FEN;
+        const toMove = turnFromFen(fen);
+        const board = ChessService.parseFEN(fen);
+        const sq = findSquareById(board, from);
+        if (!sq || !sq.piece) {
+            console.log('[PAGE] no square or piece at', from);
+            chessgroundRef?.clearDests();
+            gameActions.setPossibleMoves([]);
+            return;
+        }
+        if (sq.piece.color !== toMove) {
+            console.log('[PAGE] not side to move for', from, 'pieceColor', sq.piece.color, 'toMove', toMove);
+            // Not this side's turn – don't show dests
+            chessgroundRef?.clearDests();
+            gameActions.setPossibleMoves([]);
+            return;
+        }
+        const dests = await getPossibleMovesForSquare(from);
+        console.log('[BOARD] possible dests for', from, dests);
+        gameActions.setPossibleMoves(dests);
+        // Cache locally to validate user moves synchronously
+        lastSelectedFrom = from;
+        lastSelectedDests = dests;
+        // chessground expects a mapping { from: ['to1','to2'] }
+        chessgroundRef?.setDests({ [from]: dests });
+    }
+
+    // Handler for move events from chessground
+    function onMoveFromBoard(e) {
+        const { from, to } = e.detail;
+        console.log('[BOARD] move event', from, '→', to);
+        // Synchronous guard: if we have a cached selection, check it immediately
+        if (lastSelectedFrom !== from || !lastSelectedDests.includes(to)) {
+            console.warn('[BOARD] synchronous guard blocked move', from, '→', to, 'cachedFrom:', lastSelectedFrom, 'dests:', lastSelectedDests);
+            chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
+            // clear cache
+            lastSelectedFrom = null;
+            lastSelectedDests = [];
+            return;
+        }
+
+        // Defensive: ensure this move was allowed by our move generator (async check fallback)
+        (async () => {
+            const fen = $gameStore.currentGame?.fen ?? START_FEN;
+            const toMove = turnFromFen(fen);
+            // Only allow moves if it's player's turn (white)
+            // Assume user always plays white for now; if you support playing black, adapt here.
+            if (toMove !== 'white') {
+                console.warn('[BOARD] move blocked (not player turn)', toMove);
+                chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
+                lastSelectedFrom = null;
+                lastSelectedDests = [];
+                return;
+            }
+            const allowed = await getPossibleMovesForSquare(from);
+            if (!allowed.includes(to)) {
+                console.warn('[BOARD] move blocked (not in allowed moves)', from, '→', to, 'allowed:', allowed);
+                // reset board to server FEN to cancel illegal movement
+                chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
+                lastSelectedFrom = null;
+                lastSelectedDests = [];
+                return;
+            }
+            // Continue with promotion handling and makeMove
+            if (isPawnPromotion(from, to)) {
+                pendingPromotion = { from, to };
+                chessgroundRef?.clearDests();
+                return;
+            }
+            await makeMove(from, to);
+        })();
+    }
+
+    // Promotion dialog handler
+    async function onPromote(e) {
+        const piece = e.detail.piece || e.detail; // depending on dialog payload
+        if (!pendingPromotion) return;
+        await makeMove(pendingPromotion.from, pendingPromotion.to, piece);
+        pendingPromotion = null;
+    }
+
 
     /**
         </div>
@@ -120,6 +263,7 @@
 
         try {
             const result = await ChessService.makeMove($gameStore.currentGame.id, playerMove);
+            console.log('[MAKE MOVE] server result:', result);
             gameActions.updateGameAfterMove(result);
 
             console.log('♟️ Move:', playerMove, '→ Stockfish:', result.stockfishMove);
@@ -197,6 +341,30 @@
     }
     $: if ($gameStore.currentGame && $gameStore.currentGame.status === 'active') {
         gameOverAlerted = false;
+    }
+
+    // Debug: log current game state whenever it changes (helps verify we received the FEN)
+    $: if ($gameStore.currentGame) {
+        console.log('[DEBUG] $gameStore.currentGame changed:', $gameStore.currentGame);
+        // also log lastMove and possibleMoves
+        console.log('[DEBUG] lastMove', $gameStore.lastMove, 'possibleMoves', $gameStore.possibleMoves);
+    }
+
+    // Sync lastMove from the store to the chessground instance so highlight shows the
+    // most recent move regardless of color. The backend/gameStore provides the lastMove
+    // representing the previous played move (should be the last move made, not two moves ago).
+    $: if (chessgroundRef && $gameStore.lastMove) {
+        const lm = $gameStore.lastMove;
+        // Only sync if changed
+        if (!lastSyncedLastMove || lastSyncedLastMove.from !== lm.from || lastSyncedLastMove.to !== lm.to) {
+            console.log('[BOARD] syncing lastMove to chessground', lm);
+            try {
+                chessgroundRef.setLastMove(lm.from, lm.to);
+                lastSyncedLastMove = { from: lm.from, to: lm.to };
+            } catch (err) {
+                console.warn('Failed to set lastMove on chessground', err);
+            }
+        }
     }
 
     // Cleanup timer on component destroy
@@ -363,14 +531,33 @@
 
             <!-- Chess Board -->
             <div class="board-container">
-              //  <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} />
-              <ChessGround
-                fen={$gameStore.currentGame?.fen ?? START_FEN}
-                orientation="white"
-                viewOnly={$gameStore.currentGame?.status !== 'active'}
-                on:move={(e) => makeMove(e.detail.from, e.detail.to)}
-                on:select={(e) => { /* on branchera les surlignages plus tard */ }}
-              />
+                <!--  <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} /> -->
+                                        <ChessGround
+                                            bind:this={chessgroundRef}
+                                            fen={$gameStore.currentGame?.fen ?? START_FEN}
+                                            orientation="white"
+                                            viewOnly={$gameStore.currentGame?.status !== 'active'}
+                                            on:move={onMoveFromBoard}
+                                            on:select={onSelectFromBoard}
+                                        />
+
+                                        <!-- Promotion Dialog (géré localement ici) -->
+                                        <PromotionDialog
+                                            visible={!!pendingPromotion}
+                                            from={pendingPromotion?.from}
+                                            to={pendingPromotion?.to}
+                                            on:promote={onPromote}
+                                            on:cancel={() => { pendingPromotion = null; chessgroundRef?.clearDests(); }}
+                                        />
+            </div>
+
+            <!-- Debug: show current FEN or warning -->
+            <div class="fen-debug">
+                {#if $gameStore.currentGame?.fen}
+                    <small>FEN: {$gameStore.currentGame.fen}</small>
+                {:else}
+                    <small style="color: red;">Warning: no FEN available for current game</small>
+                {/if}
             </div>
 
             <!-- Game Controls -->

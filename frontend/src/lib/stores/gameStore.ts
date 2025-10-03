@@ -1,5 +1,6 @@
-import { writable } from 'svelte/store';
-import type { Game, PendingPromotion, User, UserProfile } from '$lib/types/chess';
+import { writable, get } from 'svelte/store';
+import type { Game, PendingPromotion, User, UserProfile, LastMove } from '$lib/types/chess';
+import { ChessService } from '$lib/services/chessService';
 
 /**
  * Game state interface managing user data, current game, and timer functionality
@@ -174,9 +175,9 @@ export const gameActions = {
             console.log('📥 New FEN after move:', result.game.fen);
         }
         // Détecter le dernier coup joué (si fourni par le backend, sinon à calculer)
-        let lastMove = null;
+        let lastMove: LastMove | null = null;
         if (result?.lastMove) {
-            // Nouveau format de lastMove depuis le backend
+            // Backend provided explicit lastMove (preferred)
             lastMove = {
                 from: result.lastMove.from,
                 to: result.lastMove.to,
@@ -184,9 +185,52 @@ export const gameActions = {
                 color: result.lastMove.color
             };
         } else if (result?.move) {
-            lastMove = result.move; // { from: 'e2', to: 'e4', color: 'w' }
+            // Legacy/alternate payload
+            lastMove = result.move as LastMove;
         } else if (result?.game?.lastMove) {
-            lastMove = result.game.lastMove;
+            lastMove = result.game.lastMove as LastMove;
+        }
+
+        // If we still don't have a reliable lastMove, try to compute it by diffing
+        // the previous FEN (state.currentGame?.fen) and the new FEN (result.game.fen).
+        if (!lastMove) {
+            try {
+                const prevState = get(gameStore);
+                const prevFen = prevState.currentGame?.fen;
+                const newFen = result?.game?.fen;
+                if (prevFen && newFen && prevFen !== newFen) {
+                    const prevBoard = ChessService.parseFEN(prevFen);
+                    const newBoard = ChessService.parseFEN(newFen);
+                    let fromSq: string | null = null;
+                    let toSq: string | null = null;
+                    for (const row of prevBoard) {
+                        for (const sq of row) {
+                            const id = `${sq.file}${sq.rank}`;
+                            const prevPiece = sq.piece;
+                            const newPiece = (() => {
+                                const nbRow = newBoard.find(r => r.some(s => `${s.file}${s.rank}` === id));
+                                if (!nbRow) return null;
+                                return nbRow.find(s => `${s.file}${s.rank}` === id)?.piece ?? null;
+                            })();
+                            if (prevPiece && !newPiece) {
+                                fromSq = id;
+                            }
+                            if (!prevPiece && newPiece) {
+                                toSq = id;
+                            }
+                            if (prevPiece && newPiece && (prevPiece.type !== newPiece.type || prevPiece.color !== newPiece.color)) {
+                                toSq = id;
+                            }
+                        }
+                    }
+                    if (fromSq && toSq) {
+                        const piece = newBoard.flat().find(s => `${s.file}${s.rank}` === toSq)?.piece;
+                        lastMove = { from: fromSq, to: toSq, piece: piece?.type ?? 'pawn', color: piece?.color ?? 'white' } as LastMove;
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to compute lastMove by FEN diff', err);
+            }
         }
         console.log('[GAMESTORE] updateGameAfterMove: result.lastMove =', result?.lastMove, 'result.move =', result?.move, 'result.game.lastMove =', result?.game?.lastMove, 'lastMove used =', lastMove);
         gameStore.update(state => ({
