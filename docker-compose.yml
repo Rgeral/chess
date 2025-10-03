@@ -1,22 +1,21 @@
-
 services:
   backend:
     build: ./backend
     ports:
       - "8080:8080"
     volumes:
-      - chess_db:/app/data
+      - db_data:/app/data
     environment:
-      DATABASE_URL: "sqlite:///app/data/chess.db"
-      CORS_ORIGIN: "https://chess.rdevs.fr"
-      RUST_LOG: "debug"
+      DATABASE_URL: sqlite:/app/data/chess.db
+      CORS_ORIGIN: https://chess.rdevs.fr
+    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && ./chess-backend"
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_GRAPHQL_API_URL: "/graphql"
+      dockerfile: dockerfile
+      args: {}
     ports:
       - "8081:80"
     depends_on:
@@ -24,5 +23,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  chess_db:
-    driver: local
+  db_data:
