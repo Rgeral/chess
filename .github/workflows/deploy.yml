@@ -94,6 +94,26 @@ jobs:
             # Start frontend now that backend is healthy
             docker-compose up -d --remove-orphans frontend
 
+            # Wait for nginx (frontend) readiness before smoke tests
+            echo 'Waiting for frontend (nginx) to be ready on :80'
+            ready=0
+            for i in $(seq 1 60); do
+              if curl -fsS -o /dev/null http://127.0.0.1/_app/version.json; then
+                echo 'Frontend ready'
+                ready=1
+                break
+              fi
+              echo "Waiting for nginx ($i)"
+              sleep 2
+            done
+            if [ "$ready" -ne 1]; then
+              echo 'Frontend not ready — logs:' >&2
+              docker-compose logs --tail=200 frontend || true
+              echo 'State:' >&2
+              docker inspect $(docker-compose ps -q frontend) -f '{{json .State}}' || true
+              exit 1
+            fi
+
             # Smoke tests through nginx
             curl -fsS -D - -o /dev/null http://127.0.0.1/_app/version.json | head -n1
             curl -fsS -D - -o /dev/null -X POST \
