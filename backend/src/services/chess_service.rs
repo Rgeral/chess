@@ -92,12 +92,7 @@ impl ChessService {
                 .map_err(|e| format!("Invalid move format: {}", e))?
         };
         
-        // if !board.legal(chess_move) {
-        //     return Err(format!("Illegal move: {}", move_str));
-        // }
-
-		// Extract source/dest squares from the ChessMove
-         let from_square = chess_move.get_source();
+        let from_square = chess_move.get_source();
 		let to_square = chess_move.get_dest();
 
 		// Check legality without consuming the ChessMove
