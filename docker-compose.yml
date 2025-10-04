@@ -10,14 +10,15 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       CORS_ORIGIN: ${CORS_ORIGIN}
       RUST_LOG: info
-    command: sh -lc "set -eu; mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run && ./chess-backend"
+      RUST_BACKTRACE: 1
+    command: ./chess-backend
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: on-failure
+    restart: unless-stopped
 
   frontend:
     container_name: chess-frontend
