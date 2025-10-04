@@ -12,7 +12,7 @@ services:
       RUST_LOG: info
     command: sh -lc "set -euo pipefail; mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run -v && ./chess-backend"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS -X POST -H 'Content-Type: application/json' --data '{\"query\":\"{ hello }\"}' http://localhost:8080/graphql >/dev/null"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,8 +29,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     restart: unless-stopped
 
 volumes:
