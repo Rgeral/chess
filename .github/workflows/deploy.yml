@@ -68,6 +68,14 @@ jobs:
               echo "Waiting for backend health... ($i)"; sleep 2;
             done
 
+            # If not healthy, show logs and fail
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo "")
+            if [ "$STATUS" != "healthy" ]; then
+              echo "Backend not healthy, last logs:" >&2
+              docker-compose logs --tail=200 backend || true
+              exit 1
+            fi
+
             # Smoke test via the exposed frontend (Nginx proxies /graphql internally)
             curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 http://chess.rdevs.fr/_app/version.json >/dev/null
             curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 -X POST -H 'Content-Type: application/json' \

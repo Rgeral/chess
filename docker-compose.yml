@@ -1,9 +1,9 @@
 services:
   backend:
+    container_name: chess-backend
     build:
       context: ./backend
       dockerfile: dockerfile
-    # No host port exposure; only internal to compose network
     volumes:
       - db_data:/app/data
     environment:
@@ -16,9 +16,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: unless-stopped
+    restart: on-failure
 
   frontend:
+    container_name: chess-frontend
     build:
       context: ./frontend
       dockerfile: dockerfile

@@ -134,6 +134,8 @@ async fn main() {
         }
         Err(e) => {
             error!("❌ Server crashed: {}", e);
+            // Échec explicite pour éviter code de sortie 0
+            std::process::exit(1);
         }
     }
 }

@@ -39,6 +39,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Default runtime envs (can be overridden by compose)
+ENV RUST_LOG=info \
+    DATABASE_URL=sqlite:///app/data/chess.db
+
 # Copier sqlx-cli et le backend depuis builder
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
