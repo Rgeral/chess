@@ -11,14 +11,15 @@ pub async fn get_user_by_id(pool: &SqlitePool, user_id: &str) -> Result<Option<U
         Ok(Some(User {
             id: row.get("id"),
             username: row.get("username"),
-            total_games: row.get("total_games"),
-            games_won: row.get("games_won"),
+            // SQL returns integers as i64 by default — cast to i32 explicitly
+            total_games: row.get::<i64, _>("total_games") as i32,
+            games_won: row.get::<i64, _>("games_won") as i32,
             created_at: row.get("created_at"),
-            // Nouvelles colonnes
-            total_play_time_seconds: row.get("total_play_time_seconds"),
-            current_streak: row.get("current_streak"),
-            best_streak: row.get("best_streak"),
-            estimated_elo: row.get("estimated_elo"),
+            // Option integers: map i64 -> i32
+            total_play_time_seconds: row.get::<Option<i64>, _>("total_play_time_seconds").map(|v| v as i32),
+            current_streak: row.get::<Option<i64>, _>("current_streak").map(|v| v as i32),
+            best_streak: row.get::<Option<i64>, _>("best_streak").map(|v| v as i32),
+            estimated_elo: row.get::<Option<i64>, _>("estimated_elo").map(|v| v as i32),
         }))
     } else {
         Ok(None)
@@ -55,15 +56,15 @@ pub async fn get_game_by_id(pool: &SqlitePool, game_id: &str) -> Result<Option<G
         Ok(Some(Game {
             id: row.get("id"),
             user_id: row.get("user_id"),
-            difficulty: row.get("difficulty"),
+            difficulty: row.get::<i64, _>("difficulty") as i32,
             fen: row.get("fen"),
             status: row.get("status"),
             result: row.get("result"),
             created_at: row.get("created_at"),
             start_time: row.get("start_time"),
             end_time: row.get("end_time"),
-            duration_seconds: row.get("duration_seconds"),
-            moves_count: row.get("moves_count"),
+            duration_seconds: row.get::<Option<i64>, _>("duration_seconds").map(|v| v as i32),
+            moves_count: row.get::<i64, _>("moves_count") as i32,
         }))
     } else {
         Ok(None)
@@ -98,15 +99,15 @@ pub async fn get_games_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<G
         games.push(Game {
             id: row.get("id"),
             user_id: row.get("user_id"),
-            difficulty: row.get("difficulty"),
+            difficulty: row.get::<i64, _>("difficulty") as i32,
             fen: row.get("fen"),
             status: row.get("status"),
             result: row.get("result"),
             created_at: row.get("created_at"),
             start_time: row.get("start_time"),
             end_time: row.get("end_time"),
-            duration_seconds: row.get("duration_seconds"),
-            moves_count: row.get("moves_count"),
+            duration_seconds: row.get::<Option<i64>, _>("duration_seconds").map(|v| v as i32),
+            moves_count: row.get::<i64, _>("moves_count") as i32,
         });
     }
 

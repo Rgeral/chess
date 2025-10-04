@@ -62,6 +62,8 @@ DATABASE_URL=sqlite:chess.db
 CORS_ORIGIN=http://localhost:5173
 EOF
 
+sqlx migrate run if DB does not exist
+
 cargo run
 ```
 Le backend écoute sur http://localhost:8080, exécute les migrations SQLx et expose:
