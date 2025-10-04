@@ -14,7 +14,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       RUST_LOG: ${RUST_LOG:-info}
       RUST_BACKTRACE: ${RUST_BACKTRACE:-1}
-    command: ./chess-backend
+    command: ["./chess-backend"]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -X POST -H 'Content-Type: application/json' --data '{\"query\":\"{__typename}\"}' http://127.0.0.1:8080/graphql >/dev/null"]
       interval: 10s

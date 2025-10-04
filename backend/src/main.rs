@@ -70,6 +70,10 @@ async fn main() {
         Ok(opts) => opts.create_if_missing(true),
         Err(e) => {
             error!("❌ Invalid DATABASE_URL: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - Invalid DATABASE_URL: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
             std::process::exit(1);
         }
     };
@@ -146,6 +150,10 @@ async fn main() {
         }
         Err(e) => {
             error!("❌ Server crashed: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - Server crashed: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
             // Échec explicite pour éviter code de sortie 0
             std::process::exit(1);
         }
