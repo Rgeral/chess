@@ -36,7 +36,6 @@
 	 // Exposed API — parent peut binder le composant (bind:this) et appeler ces fonctions
     export function setDests(dests: Record<string, string[]>) {
         if (!cg) return;
-        // store dests so reactive updates don't wipe them
         currentDests = dests || {};
         console.debug('[ChessGround] setDests', currentDests);
         // chessground accepte movable.dests pour afficher destinations
