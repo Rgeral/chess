@@ -141,7 +141,10 @@
                 return;
             }
             // Continue with promotion handling and makeMove
-            if (isPawnPromotion(from, to)) {
+            // Only trigger promotion dialog when the moving piece is actually a pawn
+            const boardForPromotion = ChessService.parseFEN(fen);
+            const fromSqForPromotion = findSquareById(boardForPromotion, from);
+            if (fromSqForPromotion?.piece?.type === 'pawn' && isPawnPromotion(from, to)) {
                 pendingPromotion = { from, to };
                 chessgroundRef?.clearDests();
                 return;
