@@ -3,6 +3,9 @@ FROM rust:1.80-slim as builder
 
 WORKDIR /app
 
+# Make DATABASE_URL available during build for sqlx macros
+ENV DATABASE_URL=sqlite:/app/sqlx.db
+
 # Installer Rust nightly
 RUN rustup install nightly && rustup default nightly
 
@@ -16,6 +19,9 @@ RUN cargo +nightly build --release || true
 
 # Copier tout le code
 COPY . .
+
+# Prepare a temporary SQLite DB and run migrations so sqlx::query! can validate at compile time
+RUN touch /app/sqlx.db && sqlx migrate run
 
 # Compiler le binaire final
 RUN cargo +nightly build --release
