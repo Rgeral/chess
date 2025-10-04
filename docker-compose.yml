@@ -1,16 +1,19 @@
+version: "3.8"
+
 services:
   backend:
     container_name: chess-backend
+    image: chess-backend:local
     build:
       context: ./backend
       dockerfile: dockerfile
     volumes:
       - db_data:/app/data
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      CORS_ORIGIN: ${CORS_ORIGIN}
-      RUST_LOG: info
-      RUST_BACKTRACE: 1
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/chess.db}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      RUST_LOG: ${RUST_LOG:-info}
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-1}
     command: ./chess-backend
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
@@ -22,6 +25,7 @@ services:
 
   frontend:
     container_name: chess-frontend
+    image: chess-frontend:local
     build:
       context: ./frontend
       dockerfile: dockerfile
@@ -30,7 +34,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

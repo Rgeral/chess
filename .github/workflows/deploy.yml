@@ -38,12 +38,13 @@ jobs:
             set -euo pipefail
             cd /home/rgeral/chess/chess
 
-            # Ensure VM-owned env file exists (not tracked by git)
+            # Ensure VM .env exists with prod overrides
             if [ ! -f .env ]; then
-              echo "Creating default .env on server (adjust if needed)" >&2
               printf '%s\n' \
                 'DATABASE_URL=sqlite:///app/data/chess.db' \
-                'CORS_ORIGIN=https://chess.rdevs.fr' > .env
+                'CORS_ORIGIN=https://chess.rdevs.fr' \
+                'RUST_LOG=info' \
+                'RUST_BACKTRACE=1' > .env
             fi
 
             # Validate compose
@@ -52,35 +53,36 @@ jobs:
             # Stop old stack (ignore errors)
             docker-compose down --remove-orphans || true
 
-            # Build images
-            DOCKER_BUILDKIT=1 docker-compose build --progress=plain
+            # Build images fresh
+            DOCKER_BUILDKIT=1 docker-compose build
 
-            # Pre-run migrations inside a one-off backend container
-            docker-compose run --rm backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'
+            # Run migrations using the new backend image on the prod volume
+            docker-compose run --rm \
+              -e DATABASE_URL="${DATABASE_URL:-sqlite:///app/data/chess.db}" \
+              backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'
 
             # Start stack
             docker-compose up -d --remove-orphans
 
-            # Wait for backend to become healthy (max ~60s)
+            # Wait for backend health
             for i in $(seq 1 30); do
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo "")
-              if [ "$STATUS" = "healthy" ]; then echo "Backend healthy"; break; fi
-              echo "Waiting for backend health... ($i)"; sleep 2;
+              cid=$(docker-compose ps -q backend || true)
+              [ -n "$cid" ] || { echo 'backend container not found'; sleep 2; continue; }
+              st=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo '')
+              [ "$st" = healthy ] && { echo 'Backend healthy'; break; }
+              echo "Waiting for backend health ($i)"; sleep 2;
             done
 
-            # If not healthy, show logs and fail
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo "")
-            if [ "$STATUS" != "healthy" ]; then
-              echo "Backend not healthy, last logs:" >&2
+            st=$(docker inspect -f '{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo '')
+            if [ "$st" != healthy ]; then
+              echo 'Backend not healthy — logs:' >&2
               docker-compose logs --tail=200 backend || true
               exit 1
             fi
 
-            # Smoke test via the exposed frontend (Nginx proxies /graphql internally)
-            curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 http://chess.rdevs.fr/_app/version.json >/dev/null
-            curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 -X POST -H 'Content-Type: application/json' \
-              --data '{"query":"{ hello }"}' http://chess.rdevs.fr/graphql >/dev/null
-
-            # Optional: public test via Cloudflare (won't fail deploy)
-            curl -fsS -X POST -H 'Content-Type: application/json' \
-              --data '{"query":"{ hello }"}' https://chess.rdevs.fr/graphql >/dev/null || echo "Warning: public hello failed (check DNS/CDN)"
+            # Smoke tests through nginx
+            curl -fsS -D - -o /dev/null http://127.0.0.1/_app/version.json | head -n1
+            curl -fsS -D - -o /dev/null -X POST \
+              -H 'Content-Type: application/json' \
+              --data '{"query":"{__typename}"}' \
+              http://127.0.0.1/graphql | head -n1
