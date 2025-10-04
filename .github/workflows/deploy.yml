@@ -53,7 +53,7 @@ jobs:
             docker-compose down --remove-orphans || true
 
             # Build images
-            docker-compose build
+            DOCKER_BUILDKIT=1 docker-compose build --progress=plain
 
             # Pre-run migrations inside a one-off backend container
             docker-compose run --rm backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'

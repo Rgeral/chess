@@ -9,7 +9,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       CORS_ORIGIN: ${CORS_ORIGIN}
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run && ./chess-backend"
+      RUST_LOG: info
+    command: sh -lc "set -euo pipefail; mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run -v && ./chess-backend"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -X POST -H 'Content-Type: application/json' --data '{\"query\":\"{ hello }\"}' http://localhost:8080/graphql >/dev/null"]
       interval: 10s
@@ -28,7 +29,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
