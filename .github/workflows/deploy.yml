@@ -61,24 +61,34 @@ jobs:
               -e DATABASE_URL="${DATABASE_URL:-sqlite:///app/data/chess.db}" \
               backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'
 
-            # Start stack
-            docker-compose up -d --remove-orphans
+            # Start backend only to avoid depends_on failing the whole up
+            docker-compose up -d --remove-orphans backend || true
 
             # Wait for backend health
-            for i in $(seq 1 30); do
+            for i in $(seq 1 60); do
               cid=$(docker-compose ps -q backend || true)
               [ -n "$cid" ] || { echo 'backend container not found'; sleep 2; continue; }
               st=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo '')
               [ "$st" = healthy ] && { echo 'Backend healthy'; break; }
-              echo "Waiting for backend health ($i)"; sleep 2;
+              if [ "$st" = unhealthy ]; then
+                echo "Backend unhealthy ($i)";
+                docker inspect "$cid" -f '{{range .State.Health.Log}}{{.End}} | code={{.ExitCode}} | {{.Output}}{{"\n"}}{{end}}' || true;
+              else
+                echo "Waiting for backend health ($i) (status=$st)";
+              fi
+              sleep 2;
             done
 
             st=$(docker inspect -f '{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo '')
             if [ "$st" != healthy ]; then
               echo 'Backend not healthy — logs:' >&2
               docker-compose logs --tail=200 backend || true
+              docker inspect $(docker-compose ps -q backend) -f '{{json .State}}' || true
               exit 1
             fi
+
+            # Start frontend now that backend is healthy
+            docker-compose up -d --remove-orphans frontend
 
             # Smoke tests through nginx
             curl -fsS -D - -o /dev/null http://127.0.0.1/_app/version.json | head -n1

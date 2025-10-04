@@ -24,6 +24,9 @@ use graphql::{QueryRoot, MutationRoot};
 use std::fs::{OpenOptions};
 use std::io::Write;
 
+/// Lightweight health probe
+async fn healthz() -> &'static str { "ok" }
+
 /// Main application entry point
 #[tokio::main]
 async fn main() {
@@ -109,6 +112,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(graphiql))
         .route("/graphql", post(graphql_handler))
+        .route("/healthz", get(healthz))
         .layer(Extension(schema))
         .layer(cors);
 
