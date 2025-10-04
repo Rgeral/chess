@@ -25,7 +25,7 @@ jobs:
           host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "backend/Cargo.toml,backend/Cargo.lock,backend/dockerfile,backend/migrations/**,backend/src/**,frontend/**,docker-compose.yml,docker-compose-stockfish.yml,README.md"
+          source: "backend/Cargo.toml,backend/Cargo.lock,backend/dockerfile,backend/migrations/**,backend/src/**,frontend/**,docker-compose.yml,docker-compose-stockfish.yml,README.md,scripts/**"
           target: "/home/rgeral/chess/chess"
 
       - name: Deploy via SSH
@@ -37,6 +37,43 @@ jobs:
           script: |
             set -euo pipefail
             cd /home/rgeral/chess/chess
+
+            # Ensure VM-owned env file exists (not tracked by git)
+            if [ ! -f .env ]; then
+              echo "Creating default .env on server (adjust if needed)" >&2
+              cat > .env <<'EOF'
+DATABASE_URL=sqlite:///app/data/chess.db
+CORS_ORIGIN=https://chess.rdevs.fr
+EOF
+            fi
+
+            # Validate compose
+            docker-compose -f docker-compose.yml config >/dev/null
+
+            # Stop old stack (ignore errors)
             docker-compose down --remove-orphans || true
+
+            # Build images
             docker-compose build
+
+            # Pre-run migrations inside a one-off backend container
+            docker-compose run --rm backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'
+
+            # Start stack
             docker-compose up -d --remove-orphans
+
+            # Wait for backend to become healthy (max ~60s)
+            for i in $(seq 1 30); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo "")
+              if [ "$STATUS" = "healthy" ]; then echo "Backend healthy"; break; fi
+              echo "Waiting for backend health... ($i)"; sleep 2;
+            done
+
+            # Smoke test via the exposed frontend (Nginx proxies /graphql internally)
+            curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 http://chess.rdevs.fr/_app/version.json >/dev/null
+            curl -fsS --resolve chess.rdevs.fr:80:127.0.0.1 -X POST -H 'Content-Type: application/json' \
+              --data '{"query":"{ hello }"}' http://chess.rdevs.fr/graphql >/dev/null
+
+            # Optional: public test via Cloudflare (won't fail deploy)
+            curl -fsS -X POST -H 'Content-Type: application/json' \
+              --data '{"query":"{ hello }"}' https://chess.rdevs.fr/graphql >/dev/null || echo "Warning: public hello failed (check DNS/CDN)"

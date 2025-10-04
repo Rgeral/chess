@@ -58,7 +58,7 @@ async fn main() {
     info!("🌍 CORS_ORIGIN = {}", cors_origin);
 
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:chess.db".to_string());
+        .unwrap_or_else(|_| "sqlite:///app/data/chess.db".to_string());
     info!("🗄️ DATABASE_URL = {}", database_url);
 
     // Connect to database

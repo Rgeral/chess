@@ -3,8 +3,8 @@ FROM rust:1.80-slim as builder
 
 WORKDIR /app
 
-# Make DATABASE_URL available during build for sqlx macros
-ENV DATABASE_URL=sqlite:/app/sqlx.db
+# Make DATABASE_URL available during build for sqlx macros (use absolute path form)
+ENV DATABASE_URL=sqlite:///app/sqlx.db
 
 # Installer Rust nightly
 RUN rustup install nightly && rustup default nightly
@@ -33,6 +33,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     stockfish \
     sqlite3 \
+    curl \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 

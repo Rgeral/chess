@@ -1,14 +1,21 @@
 services:
   backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
+    build:
+      context: ./backend
+      dockerfile: dockerfile
+    # No host port exposure; only internal to compose network
     volumes:
       - db_data:/app/data
     environment:
-      DATABASE_URL: sqlite:/app/data/chess.db
-      CORS_ORIGIN: https://chess.rdevs.fr
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && ./chess-backend"
+      DATABASE_URL: ${DATABASE_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run && ./chess-backend"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -X POST -H 'Content-Type: application/json' --data '{\"query\":\"{ hello }\"}' http://localhost:8080/graphql >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   frontend:
@@ -16,9 +23,9 @@ services:
       context: ./frontend
       dockerfile: dockerfile
       args:
-        VITE_GRAPHQL_API_URL: https://chess.rdevs.fr/graphql
+        VITE_GRAPHQL_API_URL: /graphql
     ports:
-      - "8081:80"
+      - "80:80"
     depends_on:
       - backend
     restart: unless-stopped
