@@ -6,6 +6,7 @@
     import PromotionDialog from '$lib/components/ChessBoard/PromotionDialog.svelte';
     import { getPossibleMoves } from '$lib/services/chessMoves';
     import type { ChessSquare, ChessPiece } from '$lib/types/chess';
+    import { goto } from '$app/navigation';
     const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
     let username = '';
@@ -190,6 +191,7 @@
             await loadUserProfile();
             await loadLeaderboard();
             console.log('👤 User created:', user);
+            await goto('/dashboard');
         } catch (error) {
             gameActions.setError(`Failed to create user: ${error.message}`);
             console.error('❌ User creation error:', error);
@@ -400,6 +402,7 @@
     <div class="absolute -top-16 -left-8 text-4xl opacity-15 select-none">♛</div>
     <div class="absolute -top-16 -right-8 text-4xl opacity-15 select-none">♜</div>
 
+    {#if !$gameStore.currentGame}
     <!-- Card -->
     <div class="p-8 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
       <div class="text-center space-y-6">
@@ -424,82 +427,19 @@
           </p>
         </div>
 
-    <!-- Game in Progress -->
-    {:else}
-        <div class="game-area">
-            <!-- Game Header -->
-            <div class="game-header-info">
-                <div class="game-details">
-                    <h2>♟️ vs Stockfish (Level {$gameStore.currentGame?.difficulty})</h2>
-                    <p>Status: <strong>{$gameStore.currentGame?.status}</strong></p>
-                    <p>Moves: <strong>{$gameStore.currentGame?.movesCount}</strong></p>
-                </div>
-                
-                <div class="game-timer-large">
-                    <div class="timer-display">
-                        ⏱️ {gameActions.formatTime($gameStore.elapsedTime)}
-                    </div>
-                    <div class="timer-label">Game Time</div>
-                </div>
-            </div>
-
-            <!-- Chess Board -->
-            <div class="board-container">
-                <!--  <ChessBoard lastMove={$gameStore.lastMove} onMove={makeMove} allowMoves={$gameStore.currentGame?.status === 'active'} /> -->
-                                        <ChessGround
-                                            bind:this={chessgroundRef}
-                                            fen={$gameStore.currentGame?.fen ?? START_FEN}
-                                            orientation="white"
-                                            viewOnly={$gameStore.currentGame?.status !== 'active'}
-                                            on:move={onMoveFromBoard}
-                                            on:select={onSelectFromBoard}
-                                        />
-
-                                        <!-- Promotion Dialog (géré localement ici) -->
-                                        <PromotionDialog
-                                            visible={!!pendingPromotion}
-                                            from={pendingPromotion?.from}
-                                            to={pendingPromotion?.to}
-                                            on:promote={onPromote}
-                                            on:cancel={() => { pendingPromotion = null; chessgroundRef?.clearDests(); }}
-                                        />
-            </div>
-
-            <!-- Debug FEN removed for cleaner UI -->
-
-            <!-- Game Controls -->
-            <div class="game-controls">
-                <button on:click={resetGame} class="btn btn-secondary">
-                    🏠 Back to Menu
-                </button>
-                <button on:click={resignGame} class="btn btn-secondary" disabled={$gameStore.currentGame?.status !== 'active'}>
-                    🚩 Resign
-                </button>
-            </div>
+        <!-- Statistics Panel -->
+        
+        <!-- Username input -->
+        <div class="space-y-3">
+          <input
+            type="text"
+            bind:value={username}
+            maxlength="20"
+            placeholder="Username"
+            class="w-full h-12 px-4 bg-input border border-border-50 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
+            on:keydown={(e) => e.key === 'Enter' && createUser()}
+          />
         </div>
-    {/if}
-
-    <!-- Statistics Panel -->
-    {#if showStats && $gameStore.userProfile}
-        <div class="stats-panel">
-            <h2>📊 Your Statistics</h2>
-            
-            <!-- Personal Records -->
-            {#if $gameStore.userProfile.records.length > 0}
-                <div class="records-section">
-                    <h3>🏆 Personal Records</h3>
-                    <div class="records-grid">
-                        {#each $gameStore.userProfile.records as record}
-                            <div class="record-card">
-                                <div class="record-level">Level {record.difficulty}</div>
-                                <div class="record-time">⏱️ {gameActions.formatTime(record.bestTimeSeconds)}</div>
-                                <div class="record-moves">♟️ {record.movesCount} moves</div>
-                            </div>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
-          </div>
 
           {#if username}
             <div class="text-sm text-muted-foreground">
@@ -527,15 +467,61 @@
           </div>
         </div>
       </div>
-    </div>
+    {:else}
+      <!-- Game in Progress -->
+      <div class="space-y-6">
+        <!-- Game Header -->
+        <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 class="text-xl font-semibold text-foreground">♟️ vs Stockfish (Level {$gameStore.currentGame?.difficulty})</h3>
+              <div class="text-sm text-muted-foreground">Status: <span class="font-medium text-foreground">{$gameStore.currentGame?.status}</span> • Moves: <span class="font-medium text-foreground">{$gameStore.currentGame?.movesCount}</span></div>
+            </div>
+            <div class="text-center">
+              <div class="text-2xl font-bold text-primary bg-card rounded-lg px-4 py-2 inline-block">⏱️ {gameActions.formatTime($gameStore.elapsedTime)}</div>
+              <div class="text-xs text-muted-foreground mt-1">Game Time</div>
+            </div>
+          </div>
+        </div>
 
-    <!-- Bottom decoration -->
-    <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 flex space-x-4 text-2xl opacity-20 select-none">
-      <span>♞</span>
-      <span>♝</span>
-      <span>♟</span>
+        <!-- Chess Board -->
+        <div class="p-4 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
+          <div class="max-w-3xl mx-auto">
+            <ChessGround
+              bind:this={chessgroundRef}
+              fen={$gameStore.currentGame?.fen ?? START_FEN}
+              orientation="white"
+              viewOnly={$gameStore.currentGame?.status !== 'active'}
+              on:move={onMoveFromBoard}
+              on:select={onSelectFromBoard}
+            />
+
+            <!-- Promotion Dialog -->
+            <PromotionDialog
+              visible={!!pendingPromotion}
+              from={pendingPromotion?.from}
+              to={pendingPromotion?.to}
+              on:promote={onPromote}
+              on:cancel={() => { pendingPromotion = null; chessgroundRef?.clearDests(); }}
+            />
+          </div>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="flex gap-3 justify-center">
+          <button class="h-11 px-5 rounded-full bg-card-80 text-foreground border border-border-50" on:click={resetGame}>🏠 Back to Menu</button>
+          <button class="h-11 px-5 rounded-full bg-primary text-white disabled:opacity-60" on:click={resignGame} disabled={$gameStore.currentGame?.status !== 'active'}>🚩 Resign</button>
+        </div>
+      </div>
+    {/if}
+
+      <!-- Bottom decoration -->
+      <div class="absolute -bottom-12 left-1/2 -translate-x-1/2 flex space-x-4 text-2xl opacity-20 select-none">
+        <span>♞</span>
+        <span>♝</span>
+        <span>♟</span>
+      </div>
     </div>
-  </div>
 </div>
 
 <style>

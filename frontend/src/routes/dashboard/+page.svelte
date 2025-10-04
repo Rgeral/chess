@@ -181,7 +181,7 @@
     </div>
 
     {#if $gameStore.user}
-      {#if gameStarted && $gameStore.currentGame}
+      {#if $gameStore.currentGame}
         <!-- Game Area -->
         <div class="space-y-6">
           <div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
