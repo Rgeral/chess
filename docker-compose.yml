@@ -28,7 +28,7 @@ services:
       context: ./frontend
       dockerfile: dockerfile
       args:
-        VITE_GRAPHQL_API_URL: /graphql
+        VITE_GRAPHQL_API_URL: ${VITE_GRAPHQL_API_URL:-/graphql}
     ports:
       - "80:80"
     depends_on:
