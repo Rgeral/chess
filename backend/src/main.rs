@@ -81,6 +81,10 @@ async fn main() {
         }
         Err(e) => {
             error!("❌ Failed to connect to database: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - DB connect error: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
             std::process::exit(1);
         }
     };
@@ -89,6 +93,10 @@ async fn main() {
     info!("📦 Running migrations...");
     if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
         error!("❌ Failed to run migrations: {}", e);
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+            let _ = writeln!(f, "{} - Migration error: {}", chrono::Utc::now(), e);
+            let _ = f.flush();
+        }
         std::process::exit(1);
     }
     info!("✅ Migrations applied");

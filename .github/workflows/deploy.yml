@@ -57,9 +57,14 @@ jobs:
             DOCKER_BUILDKIT=1 docker-compose build
 
             # Run migrations using the new backend image on the prod volume
-            docker-compose run --rm \
+            echo "== Running migrations =="
+            if ! docker-compose run --rm \
               -e DATABASE_URL="${DATABASE_URL:-sqlite:///app/data/chess.db}" \
-              backend sh -lc 'mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run'
+              backend sh -lc 'set -eu; mkdir -p /app/data && chmod 777 /app/data; ls -la /app /app/migrations /app/data || true; sqlx migrate run -y'; then
+              echo "Migrations failed. Inspecting volume boot.log if any:" >&2
+              docker run --rm -v db_data:/v busybox sh -lc 'ls -la /v; echo "--- boot.log ---"; sed -n "1,200p" /v/boot.log 2>/dev/null || echo "(no boot.log)"'
+              exit 1
+            fi
 
             # Start backend only to avoid depends_on failing the whole up
             docker-compose up -d --remove-orphans backend || true
@@ -70,12 +75,8 @@ jobs:
               [ -n "$cid" ] || { echo 'backend container not found'; sleep 2; continue; }
               st=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo '')
               [ "$st" = healthy ] && { echo 'Backend healthy'; break; }
-              if [ "$st" = unhealthy ]; then
-                echo "Backend unhealthy ($i)";
-                docker inspect "$cid" -f '{{range .State.Health.Log}}{{.End}} | code={{.ExitCode}} | {{.Output}}{{"\n"}}{{end}}' || true;
-              else
-                echo "Waiting for backend health ($i) (status=$st)";
-              fi
+              echo "Waiting for backend health ($i) (status=$st)"
+              docker inspect "$cid" -f '{{range .State.Health.Log}}{{.End}} | code={{.ExitCode}} | {{.Output}}{{"\n"}}{{end}}' | tail -n 5 || true
               sleep 2;
             done
 
@@ -83,7 +84,10 @@ jobs:
             if [ "$st" != healthy ]; then
               echo 'Backend not healthy — logs:' >&2
               docker-compose logs --tail=200 backend || true
+              echo 'State:' >&2
               docker inspect $(docker-compose ps -q backend) -f '{{json .State}}' || true
+              echo 'boot.log from volume:' >&2
+              docker run --rm -v db_data:/v busybox sh -lc 'sed -n "1,200p" /v/boot.log 2>/dev/null || echo "(no boot.log)"'
               exit 1
             fi
 
