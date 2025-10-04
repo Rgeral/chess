@@ -41,10 +41,9 @@ jobs:
             # Ensure VM-owned env file exists (not tracked by git)
             if [ ! -f .env ]; then
               echo "Creating default .env on server (adjust if needed)" >&2
-              cat > .env <<'EOF'
-DATABASE_URL=sqlite:///app/data/chess.db
-CORS_ORIGIN=https://chess.rdevs.fr
-EOF
+              printf '%s\n' \
+                'DATABASE_URL=sqlite:///app/data/chess.db' \
+                'CORS_ORIGIN=https://chess.rdevs.fr' > .env
             fi
 
             # Validate compose
