@@ -10,7 +10,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       CORS_ORIGIN: ${CORS_ORIGIN}
       RUST_LOG: info
-    command: sh -lc "set -eu; mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run -v && ./chess-backend"
+    command: sh -lc "set -eu; mkdir -p /app/data && chmod 777 /app/data && sqlx migrate run && ./chess-backend"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
       interval: 10s
