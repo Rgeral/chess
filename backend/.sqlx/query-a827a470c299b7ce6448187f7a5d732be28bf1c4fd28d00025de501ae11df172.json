@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, username, total_games, games_won, created_at, total_play_time_seconds, current_streak, best_streak, estimated_elo FROM users WHERE username = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "total_games",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "games_won",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 4,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "total_play_time_seconds",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_streak",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "best_streak",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "estimated_elo",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a827a470c299b7ce6448187f7a5d732be28bf1c4fd28d00025de501ae11df172"
+}

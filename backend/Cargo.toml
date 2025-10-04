@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
 async-graphql = { version = "7", features = ["chrono"] }
@@ -18,4 +20,3 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 chess = "3.2"
 rand = { version = "0.8", features = ["std_rng"] }
-tracing = "0.1.41"

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, username, total_games, games_won, created_at, \n                    total_play_time_seconds, current_streak, best_streak, estimated_elo \n             FROM users \n             WHERE estimated_elo IS NOT NULL \n             ORDER BY estimated_elo DESC \n             LIMIT ?",
+  "query": "SELECT id, username, total_games, games_won, created_at, total_play_time_seconds, current_streak, best_streak, estimated_elo FROM users WHERE estimated_elo IS NOT NULL ORDER BY estimated_elo DESC LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -64,5 +64,5 @@
       true
     ]
   },
-  "hash": "9103504110001b27b7b645641cf3dcbd5e914b07343040e41cbb7b8744fc531d"
+  "hash": "87bf863c0667c228844547b9892e7d944ee422d3311c72fab1df1792fe8131ba"
 }

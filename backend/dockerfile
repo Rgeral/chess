@@ -1,20 +1,48 @@
-# backend/Dockerfile
-FROM rustlang/rust:nightly as builder
+# ---- Builder ----
+FROM rust:1.80-slim as builder
 
 WORKDIR /app
+
+# Installer Rust nightly
+RUN rustup install nightly && rustup default nightly
+
+# Installer sqlx-cli (sqlite uniquement, pas besoin de Postgres/MySQL)
+RUN cargo install sqlx-cli --no-default-features --features sqlite
+
+# Copier seulement Cargo.toml pour build des deps en cache
+COPY Cargo.toml ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo +nightly build --release || true
+
+# Copier tout le code
 COPY . .
-RUN cargo build --release
 
-FROM rustlang/rust:nightly
-RUN apt-get update && apt-get install -y stockfish sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
-# Vérifier où Stockfish est installé et créer un lien symbolique si nécessaire
-RUN which stockfish || echo "Stockfish not found in PATH"
-RUN ls -la /usr/games/stockfish || echo "Stockfish not found in /usr/games/"
-RUN ln -sf /usr/games/stockfish /usr/local/bin/stockfish || echo "Could not create symlink"
+# Compiler le binaire final
+RUN cargo +nightly build --release
+
+# ---- Runtime ----
+FROM debian:bookworm-slim
+
+# Installer dépendances runtime
+RUN apt-get update && apt-get install -y \
+    stockfish \
+    sqlite3 \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+# Copier sqlx-cli et le backend depuis builder
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
 COPY --from=builder /app/target/release/chess-backend /app/chess-backend
+
+# Copier les migrations
 COPY ./migrations ./migrations
-COPY ./chess.db ./chess.db
-COPY .env.production .env
+
+# Créer dossier data (pour SQLite)
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 EXPOSE 8080
+
+# Lancer le backend
 CMD ["./chess-backend"]
