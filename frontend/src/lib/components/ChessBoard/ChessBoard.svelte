@@ -1,593 +1,158 @@
+<!-- Wrapper that wires Chessground to the app logic (select/move/promotion) -->
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
-    import { get } from 'svelte/store';
-    import type { ChessSquare as ChessSquareType, ChessPiece, PromotionChoice } from '$lib/types/chess';
-    import ChessSquareComponent from './ChessSquare.svelte';
-    import BoardCoordinates from './BoardCoordinates.svelte';
-    import PromotionDialog from './PromotionDialog.svelte';
-    import { ChessService } from '$lib/services/chessService';
-    import { gameStore, gameActions } from '$lib/stores/gameStore';
-    import { getPossibleMoves as getMovesFromService } from '$lib/services/chessMoves';
-    
-    /**
-     * Main ChessBoard component - manages the entire chess board display and interaction
-     * @param fen - Current board position in FEN notation
-     * @param flipped - Whether to show board from black's perspective
-     * @param showCoordinates - Whether to show file/rank labels
-     * @param allowMoves - Whether moves are allowed (interactive mode)
-     * @param highlightedSquares - Array of squares to highlight
-     * @param selectedSquare - Currently selected square
-     * @param lastMove - Last move made (from/to squares)
-     */
-    export let fen: string = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-    export let flipped: boolean = false;
-    export let showCoordinates: boolean = true;
-    export let allowMoves: boolean = true;
-    export let highlightedSquares: string[] = [];
-    export let selectedSquare: string | null = null;
-    export let lastMove: { from: string; to: string } | null = null;
-    
-    const dispatch = createEventDispatcher<{
-        move: { from: string; to: string; promotion?: string };
-        squareClick: { square: string };
-        pieceSelect: { square: string; piece: ChessPiece };
-    }>();
-    
-    // Board state
-    let board: ChessSquareType[][] = [];
-    
-    // Files and ranks for board generation
-    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-    const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
-    
-    // Ajout de l'état pour la sélection et les coups possibles
-    let selectedSquareId: string | null = null;
-    let possibleMoves: string[] = [];
-    
-    // Animation state for adversary move
-    let animating = false;
-    let animationPiece: ChessPiece | null = null;
-    let animationFrom: string | null = null;
-    let animationTo: string | null = null;
-    let animationTimeout: any = null;
-    let previousLastMove: { from: string; to: string } | null = null;
-    let showLastMoveHighlight: { from: string; to: string } | null = null;
-    let isProcessingAnimation = false; // Flag to prevent multiple concurrent animations
-    const ANIMATION_DURATION = 1200; // ms
-    
-    /**
-     * Parse FEN string and generate board representation
-     */
-    function parseFEN(fen: string): ChessSquareType[][] {
-        const parts = fen.split(' ');
-        const position = parts[0];
-        const ranks = position.split('/');
-        
-        const board: ChessSquareType[][] = [];
-        
-        for (let rankIndex = 0; rankIndex < 8; rankIndex++) {
-            const rank: ChessSquareType[] = [];
-            const rankString = ranks[rankIndex];
-            let fileIndex = 0;
-            
-            for (const char of rankString) {
-                if (char >= '1' && char <= '8') {
-                    // Empty squares
-                    const emptyCount = parseInt(char);
-                    for (let i = 0; i < emptyCount; i++) {
-                        rank.push({
-                            file: files[fileIndex],
-                            rank: 8 - rankIndex,
-                            piece: null
-                        });
-                        fileIndex++;
-                    }
-                } else {
-                    // Piece
-                    const piece = parsePiece(char);
-                    rank.push({
-                        file: files[fileIndex],
-                        rank: 8 - rankIndex,
-                        piece
-                    });
-                    fileIndex++;
-                }
-            }
-            
-            board.push(rank);
-        }
-        
-        return board;
-    }
-    
-    /**
-     * Parse a single piece character from FEN
-     */
-    function parsePiece(char: string): ChessPiece {
-        const pieceMap: Record<string, ChessPiece['type']> = {
-            'k': 'king', 'q': 'queen', 'r': 'rook',
-            'b': 'bishop', 'n': 'knight', 'p': 'pawn'
-        };
-        
-        const type = pieceMap[char.toLowerCase()];
-        const color = char === char.toUpperCase() ? 'white' : 'black';
-        
-        return { type, color };
-    }
-    
-    /**
-     * Fonction pour calculer les coups possibles d'une pièce (exemple simple, à adapter selon ta logique)
-     */
-    function getPossibleMoves(square: ChessSquareType): string[] {
-        // Passe le FEN au service pour le roque
-        return getMovesFromService(board, square, fen);
-    }
-    
-    /**
-     * Handles square click events
-     */
-    function handleSquareClick(event: CustomEvent) {
-        const { square, isPossibleMove } = event.detail;
-        const squareId = `${square.file}${square.rank}`;
+  import ChessGround from './ChessGround.svelte';
+  import PromotionDialog from './PromotionDialog.svelte';
+  import { gameStore, gameActions } from '$lib/stores/gameStore';
+  import { ChessService } from '$lib/services/chessService';
+  import { getPossibleMoves } from '$lib/services/chessMoves';
+  import type { ChessSquare } from '$lib/types/chess';
 
-        // 1. Si une pièce est sélectionnée et on clique sur une destination valide (case verte)
-        if (selectedSquareId && possibleMoves.includes(squareId)) {
-            // Check for pawn promotion
-            if (isPawnPromotion(selectedSquareId, squareId)) {
-                gameActions.setPendingPromotion(selectedSquareId, squareId);
-                selectedSquareId = null;
-                possibleMoves = [];
-                return;
-            }
-            handleMove({ from: selectedSquareId, to: squareId });
-            selectedSquareId = null;
-            possibleMoves = [];
-            return;
-        }
-        // 2. Sinon, si la case contient une pièce, on la sélectionne
-        if (square.piece) {
-            selectedSquareId = squareId;
-            possibleMoves = getPossibleMoves(square);
-            return;
-        }
-        // 3. Sinon, on désélectionne
-        selectedSquareId = null;
-        possibleMoves = [];
+  export let lastMove: { from: string; to: string } | null = null;
+  export let allowMoves: boolean = false;
+
+  const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+  let boardRef: any = null;
+  let pendingPromotion: { from: string; to: string } | null = null;
+
+  // Cache for last selection (used to render highlighted destinations on the board)
+  let lastSelectedFrom: string | null = null;
+
+  // Helpers
+  function turnFromFen(fen: string): 'white' | 'black' {
+    if (!fen) return 'white';
+    const parts = fen.split(' ');
+    return parts[1] === 'w' ? 'white' : 'black';
+  }
+  function findSquareById(board: ChessSquare[][], id: string): ChessSquare | null {
+    for (const row of board) for (const sq of row) if (`${sq.file}${sq.rank}` === id) return sq; return null;
+  }
+  function isPawnPromotion(from: string, to: string): boolean {
+    if (!from || !to) return false;
+    const fromRank = parseInt(from[1]);
+    const toRank = parseInt(to[1]);
+    return (fromRank === 7 && toRank === 8) || (fromRank === 2 && toRank === 1);
+  }
+  async function getPossibleMovesForSquare(squareId: string): Promise<string[]> {
+    try {
+      const fen = $gameStore.currentGame?.fen ?? START_FEN;
+      const board = ChessService.parseFEN(fen);
+      const square = findSquareById(board, squareId);
+      if (!square) return [];
+      const toMove = turnFromFen(fen);
+      if (!square.piece || square.piece.color !== toMove) return [];
+      const moves = getPossibleMoves(board, square, fen);
+      return moves || [];
+    } catch (e) {
+      console.error('[ChessBoard] getPossibleMovesForSquare failed', squareId, e);
+      return [];
+    }
+  }
+
+  // Selection handler (compute and show destinations)
+  async function onSelectFromBoard(e: CustomEvent) {
+    const from = (e as any).detail.square as string;
+    lastSelectedFrom = from;
+    const dests = await getPossibleMovesForSquare(from);
+    // Update global possible moves for other parts of UI if needed
+    gameActions.setPossibleMoves(dests);
+    // Show destinations on the board
+    boardRef?.setDests({ [from]: dests });
+  }
+
+  // Move handler (validate turn, legality, promotion, then submit move)
+  async function onMoveFromBoard(e: CustomEvent) {
+    const { from, to } = (e as any).detail as { from: string; to: string };
+
+    // Validate turn (player is white)
+    const fen = $gameStore.currentGame?.fen ?? START_FEN;
+    const toMove = turnFromFen(fen);
+    if (toMove !== 'white') {
+      console.warn('[ChessBoard] Blocked move: not player turn', toMove);
+      boardRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
+      return;
     }
 
-    /**
-     * Handle drag start events
-     */
-    function handleDragStart(event: CustomEvent) {
-        const { square } = event.detail;
-        // Set drag data
-        event.detail.event.dataTransfer?.setData('text/plain', `${square.file}${square.rank}`);
-    }
-    
-    /**
-     * Handles drop events
-     */
-    function handleDrop(event: CustomEvent) {
-        const { square } = event.detail;
-        const fromSquare = event.detail.event.dataTransfer?.getData('text/plain');
-        const toSquare = `${square.file}${square.rank}`;
-
-        if (fromSquare && fromSquare !== toSquare) {
-            // Check for pawn promotion
-            if (isPawnPromotion(fromSquare, toSquare)) {
-                gameActions.setPendingPromotion(fromSquare, toSquare);
-                return;
-            }
-            handleMove({ from: fromSquare, to: toSquare });
-        }
-    }
-    
-    /**
-     * Check if a move is a pawn promotion
-     */
-    function isPawnPromotion(from: string, to: string): boolean {
-        const fromRank = parseInt(from[1]);
-        const toRank = parseInt(to[1]);
-        const fromSquare = getSquareFromId(from);
-        
-        if (!fromSquare?.piece || fromSquare.piece.type !== 'pawn') {
-            return false;
-        }
-        
-        return (fromSquare.piece.color === 'white' && fromRank === 7 && toRank === 8) ||
-               (fromSquare.piece.color === 'black' && fromRank === 2 && toRank === 1);
-    }
-    
-    /**
-     * Get square object from square ID
-     */
-    function getSquareFromId(squareId: string): ChessSquareType | null {
-        for (const rank of board) {
-            for (const square of rank) {
-                if (`${square.file}${square.rank}` === squareId) {
-                    return square;
-                }
-            }
-        }
-        return null;
-    }
-    
-    /**
-     * Handle promotion dialog events
-     */
-    function handlePromotion(event: CustomEvent<PromotionChoice>) {
-        const { from, to, piece } = event.detail;
-        // Clear pending promotion state
-        gameActions.clearPendingPromotion();
-        // Execute the move with promotion
-        handleMove({ from, to, promotion: piece });
-    }
-    
-    function handlePromotionCancel() {
-        // Clear pending promotion state
-        gameActions.clearPendingPromotion();
-    }
-    
-    /**
-     * Check if a square should be highlighted
-     */
-    function isSquareHighlighted(squareId: string): boolean {
-        return highlightedSquares.includes(squareId);
-    }
-    
-    /**
-     * Check if a square is part of the last move
-     */
-    function isLastMoveSquare(squareId: string): boolean {
-        return lastMove ? (lastMove.from === squareId || lastMove.to === squareId) : false;
-    }
-    
-    /**
-     * Check if a square is dark (for alternating colors)
-     */
-    function isDarkSquare(file: string, rank: number): boolean {
-        const fileIndex = files.indexOf(file);
-        return (fileIndex + rank) % 2 === 0;
-    }
-    
-    // Reactive statements
-    $: board = parseFEN(fen);
-    $: displayBoard = flipped ? [...board].reverse().map(rank => [...rank].reverse()) : board;
-    
-    async function handleMove({ from, to, promotion }: { from: string, to: string, promotion?: string }) {
-        // Récupère l'id de la partie et le FEN actuel (à adapter selon ton store)
-        const game = get(gameStore).currentGame;
-        if (!game) {
-            console.error('[handleMove] No current game');
-            return;
-        }
-        // Format du move pour le backend (ex: e2e4, g1f3, e7e8q)
-        let move = `${from}${to}`;
-        if (promotion) move += promotion[0]; // q, r, b, n
-        console.log('[handleMove] Sending move to backend:', move);
-        try {
-            const result = await ChessService.makeMove(game.id, move);
-            // Met à jour le store avec le résultat complet (inclut lastMove)
-            gameActions.updateGameAfterMove(result);
-            // Met à jour le FEN du board avec la réponse
-            if (result && result.game && result.game.fen) {
-                fen = result.game.fen;
-                console.log('[handleMove] New FEN:', fen);
-            }
-        } catch (e) {
-            console.error('[handleMove] Error:', e);
-        }
-    }
-    
-    // Remove or comment out debug logs for production
-    // console.log('[ANIMATION-DEBUG] Component render, lastMove:', lastMove, 'board.length:', board.length);
-
-    // Watch for new moves and trigger animation
-    $: if (lastMove && board.length && !previousLastMove || 
-           (lastMove && previousLastMove && 
-            (lastMove.from !== previousLastMove.from || lastMove.to !== previousLastMove.to))) {
-        // console.log('[ANIMATION-DEBUG] New move detected:', lastMove, 'previous:', previousLastMove);
-        handleNewMove(lastMove);
-        previousLastMove = lastMove ? { from: lastMove.from, to: lastMove.to } : null;
+    // Validate legality using generator
+    const allowed = await getPossibleMovesForSquare(from);
+    if (!allowed.includes(to)) {
+      console.warn('[ChessBoard] Blocked move (not allowed)', from, '→', to, 'allowed:', allowed);
+      boardRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
+      return;
     }
 
-    // Liste des types valides pour une pièce
-    const validPieceTypes = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn'];
-
-    function normalizePieceType(type: string): ChessPiece['type'] {
-        if (validPieceTypes.includes(type)) return type as ChessPiece['type'];
-        // Keep this warning for backend issues
-        console.warn('[ANIMATION] Type de pièce inconnu reçu du backend:', type, '-> fallback pawn');
-        return 'pawn';
+    // Promotion case
+    const boardForPromotion = ChessService.parseFEN(fen);
+    const fromSq = findSquareById(boardForPromotion, from);
+    if (fromSq?.piece?.type === 'pawn' && isPawnPromotion(from, to)) {
+      pendingPromotion = { from, to };
+      boardRef?.clearDests();
+      return;
     }
 
-    function handleNewMove(move: { from: string; to: string }) {
-        // Prevent multiple concurrent animation processing
-        if (isProcessingAnimation) {
-            // console.log('[ANIMATION] Already processing animation, skipping');
-            return;
-        }
-        
-        // console.log('[ANIMATION] Processing new move:', move);
-        
-        // Get the piece info from the backend's lastMove data
-        const gameState = get(gameStore);
-        const lastMoveData = gameState.lastMove;
-        
-        // console.log('[ANIMATION] Current game state lastMove:', lastMoveData);
-        
-        // Only animate if this is a move from the backend (opponent move)
-        if (lastMoveData && lastMoveData.from === move.from && lastMoveData.to === move.to) {
-            // console.log('[ANIMATION] Detected opponent move, starting animation');
-            
-            // Set processing flag
-            isProcessingAnimation = true;
-            
-            // Clear any existing animation
-            if (animationTimeout) {
-                clearTimeout(animationTimeout);
-                animating = false;
-            }
-            
-            // Show the last move highlight
-            showLastMoveHighlight = { from: move.from, to: move.to };
-            
-            // Utilise le type de pièce du backend, normalisé
-            const pieceTypeRaw = lastMoveData.piece || 'pawn';
-            const pieceType = normalizePieceType(pieceTypeRaw);
-            let piece: ChessPiece = {
-                type: pieceType,
-                color: 'black'
-            };
-            
-            // console.log('[ANIMATION] Animation piece:', piece);
-            
-            animating = true;
-            animationPiece = piece;
-            animationFrom = move.from;
-            animationTo = move.to;
-            
-            animationTimeout = setTimeout(() => {
-                // console.log('[ANIMATION] Animation finished for move:', move);
-                animating = false;
-                animationPiece = null;
-                animationFrom = null;
-                animationTo = null;
-                animationTimeout = null;
-                isProcessingAnimation = false; // Reset processing flag
-                
-                // Clear the lastMove highlighting after animation
-                setTimeout(() => {
-                    showLastMoveHighlight = null;
-                }, 1000); // Give time to see the final position
-            }, ANIMATION_DURATION);
-        } // else {
-        //     console.log('[ANIMATION] No animation needed - not an opponent move');
-        // }
+    await submitMove(from, to);
+  }
+
+  async function submitMove(from: string, to: string, promotion: 'queen' | 'rook' | 'bishop' | 'knight' | null = null) {
+    if (!$gameStore.currentGame) return;
+
+    let playerMove = `${from}${to}`;
+    if (promotion) {
+      const promotionLetters = { queen: 'q', rook: 'r', bishop: 'b', knight: 'n' } as const;
+      playerMove += promotionLetters[promotion];
     }
 
-    function getAnimationStyle(from: string | null, to: string | null) {
-        if (!from || !to) {
-            // console.log('[ANIMATION] getAnimationStyle called with invalid from/to:', from, to);
-            return '';
-        }
-        
-        // console.log('[ANIMATION] Creating animation style for:', from, '→', to);
-        
-        // Convert chess notation to board coordinates (0-7)
-        const fileToIdx = (f: string) => files.indexOf(f);
-        // For rank indexing: rank 8 -> index 0, rank 7 -> index 1, etc.
-        const rankToIdx = (r: number) => 8 - r;
-        
-        const fromFile = from[0];
-        const fromRank = parseInt(from[1]);
-        const toFile = to[0];
-        const toRank = parseInt(to[1]);
-        
-        const fromX = fileToIdx(fromFile);
-        const fromY = rankToIdx(fromRank);
-        const toX = fileToIdx(toFile);
-        const toY = rankToIdx(toRank);
-        
-        // console.log('[ANIMATION] Coordinate mapping:', {
-        //     from, to,
-        //     fromFile, fromRank, toFile, toRank,
-        //     fromX, fromY, toX, toY
-        // });
-        
-        // Calculate positions in pixels (assuming 62.5px per square for a 500px board)
-        const squareSize = 62.5; // 500px / 8 squares
-        const fromLeft = fromX * squareSize;
-        const fromTop = fromY * squareSize;
-        const toLeft = toX * squareSize;
-        const toTop = toY * squareSize;
-        
-        // console.log('[ANIMATION] Pixel positions:', {
-        //     fromLeft, fromTop, toLeft, toTop,
-        //     translateX: toLeft - fromLeft,
-        //     translateY: toTop - fromTop
-        // });
-        
-        const style = `
-            position: absolute;
-            left: ${fromLeft}px;
-            top: ${fromTop}px;
-            width: ${squareSize}px;
-            height: ${squareSize}px;
-            transform: translate(${toLeft - fromLeft}px, ${toTop - fromTop}px);
-            transition: transform ${ANIMATION_DURATION}ms cubic-bezier(.4,2,.6,1);
-            z-index: 20;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 44px;
-            line-height: 1;
-            box-sizing: border-box;
-        `;
-        
-        return style;
-    }
+    gameActions.setLoading(true);
+    gameActions.setError(null);
+    try {
+      const result = await ChessService.makeMove($gameStore.currentGame.id, playerMove);
+      gameActions.updateGameAfterMove(result);
 
-    // Call test on mount
-    onMount(() => {
-        console.log('[CHESS] ChessBoard component mounted');
-    });
+      if (result.gameOver) {
+        const outcome = result.winner === 'white' ? 'You won! 🏆' : result.winner === 'black' ? 'You lost! 😔' : 'Draw! 🤝';
+        const time = gameActions.formatTime(result.totalTimeSeconds || $gameStore.elapsedTime);
+        alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${result.game.movesCount}`);
+      }
+    } catch (error: any) {
+      gameActions.setError(`Invalid move: ${error?.message ?? error}`);
+      console.error('[ChessBoard] Move error:', error);
+    } finally {
+      gameActions.setLoading(false);
+    }
+  }
+
+  function onPromote(e: CustomEvent) {
+    const piece = (e as any).detail.piece || (e as any).detail; // resilient payload
+    if (!pendingPromotion) return;
+    submitMove(pendingPromotion.from, pendingPromotion.to, piece);
+    pendingPromotion = null;
+  }
+
+  // Keep last move highlight in sync
+  $: if (boardRef && lastMove?.from && lastMove?.to) {
+    try { boardRef.setLastMove(lastMove.from, lastMove.to); } catch {}
+  }
 </script>
 
-<div class="chess-board-outer-center">
-    <div class="chess-board-container">
-        <BoardCoordinates {flipped} {showCoordinates}>
-            <div class="chess-board" class:flipped>
-                {#each displayBoard as rank, rankIndex}
-                    {#each rank as square, fileIndex}
-                        {@const squareId = `${square.file}${square.rank}`}
-                        <ChessSquareComponent
-                            {square}
-                            isSelected={selectedSquareId === squareId}
-                            isHighlighted={possibleMoves.includes(squareId)}
-                            isPossibleMove={possibleMoves.includes(squareId)}
-                            isLastMove={showLastMoveHighlight ? (showLastMoveHighlight.from === squareId || showLastMoveHighlight.to === squareId) : false}
-                            isLastMoveFrom={!!(showLastMoveHighlight && showLastMoveHighlight.from === squareId)}
-                            isLastMoveTo={!!(showLastMoveHighlight && showLastMoveHighlight.to === squareId)}
-                            isDarkSquare={isDarkSquare(square.file, square.rank)}
-                            allowDrag={allowMoves}
-                            allowDrop={allowMoves}
-                            hidepiece={animating && animationFrom === squareId}
-                            on:click={handleSquareClick}
-                            on:dragstart={handleDragStart}
-                            on:drop={handleDrop}
-                        />
-                    {/each}
-                {/each}
-                
-                <!-- Floating animation piece -->
-                {#if animating && animationPiece}
-                    <div
-                        class="animating-piece"
-                        style={getAnimationStyle(animationFrom, animationTo)}
-                    >
-                        {animationPiece.type === 'king' ? (animationPiece.color === 'white' ? '♔' : '♚')
-                        : animationPiece.type === 'queen' ? (animationPiece.color === 'white' ? '♕' : '♛')
-                        : animationPiece.type === 'rook' ? (animationPiece.color === 'white' ? '♖' : '♜')
-                        : animationPiece.type === 'bishop' ? (animationPiece.color === 'white' ? '♗' : '♝')
-                        : animationPiece.type === 'knight' ? (animationPiece.color === 'white' ? '♘' : '♞')
-                        : animationPiece.type === 'pawn' ? (animationPiece.color === 'white' ? '♙' : '♟')
-                        : ''}
-                    </div>
-                {/if}
-            </div>
-        </BoardCoordinates>
-        
-        <!-- Promotion Dialog -->
-        <PromotionDialog
-            visible={$gameStore.pendingPromotion?.isActive || false}
-            from={$gameStore.pendingPromotion?.from || ''}
-            to={$gameStore.pendingPromotion?.to || ''}
-            on:promote={handlePromotion}
-            on:cancel={handlePromotionCancel}
-        />
-    </div>
-</div>
+<ChessGround
+  bind:this={boardRef}
+  fen={$gameStore.currentGame?.fen ?? START_FEN}
+  orientation="white"
+  viewOnly={!allowMoves || $gameStore.currentGame?.status !== 'active'}
+  on:select={onSelectFromBoard}
+  on:move={onMoveFromBoard}
+/>
+
+{#if !!pendingPromotion}
+  <PromotionDialog
+    visible={!!pendingPromotion}
+    from={pendingPromotion.from}
+    to={pendingPromotion.to}
+    on:promote={onPromote}
+    on:cancel={() => { pendingPromotion = null; boardRef?.clearDests(); }}
+  />
+{/if}
 
 <style>
-    .chess-board-outer-center {
-        width: 100%;
-        display: flex;
-        justify-content: center;
-        /* On n'aligne plus verticalement */
-        margin-top: 32px; /* Ajuste la valeur selon l'espace voulu sous le timer */
-        background: #f8f9fa;
-        box-sizing: border-box;
-    }
-
-    .chess-board-container {
-        display: inline-block;
-        margin: 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        background: #f8f9fa;
-        padding: 20px;
-    }
-    
-    .chess-board {
-        display: grid;
-        grid-template-columns: repeat(8, 1fr);
-        grid-template-rows: repeat(8, 1fr);
-        gap: 1px;
-        width: 500px;
-        height: 500px;
-        border: 2px solid #8b4513;
-        border-radius: 4px;
-        overflow: hidden;
-        position: relative; /* Important for absolute positioning of animated piece */
-    }
-    
-    .chess-board.flipped {
-        transform: rotate(180deg);
-    }
-    
-    .animating-piece {
-        user-select: none;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-    }
-
-    /* Correction alignement labels */
-    .board-coordinates {
-        position: relative;
-        width: 500px;
-        margin: 0 auto;
-    }
-    .rank-labels {
-        position: absolute;
-        left: -28px;
-        top: 0;
-        height: 500px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        align-items: center;
-        pointer-events: none;
-    }
-    .rank-label {
-        height: 62.5px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        color: #b9b7b4;
-        font-weight: bold;
-        width: 24px;
-    }
-    /* Responsive design */
-    @media (max-width: 768px) {
-        .chess-board, .board-coordinates {
-            width: 350px;
-            height: 350px;
-        }
-        .rank-labels {
-            height: 350px;
-            left: -22px;
-        }
-        .rank-label {
-            height: 43.75px;
-            width: 18px;
-            font-size: 13px;
-        }
-    }
-    @media (max-width: 480px) {
-        .chess-board, .board-coordinates {
-            width: 280px;
-            height: 280px;
-        }
-        .rank-labels {
-            height: 280px;
-            left: -16px;
-        }
-        .rank-label {
-            height: 35px;
-            width: 14px;
-            font-size: 11px;
-        }
-    }
+  /* No extra styles here; container sizing handled by ChessGround */
 </style>

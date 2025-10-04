@@ -33,34 +33,27 @@ impl StatsService {
 
         let mut tx = pool.begin().await?;
 
-        // Update user's total play time
+        // Update user's aggregate stats atomically:
+        // - total_games
+        // - games_won (conditionally)
+        // - total_play_time_seconds
+        // - current_streak and best_streak
         sqlx::query!(
-            "UPDATE users SET total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + ? WHERE id = ?",
+            "UPDATE users SET 
+                total_games = COALESCE(total_games, 0) + 1,
+                games_won = COALESCE(games_won, 0) + CASE WHEN ? THEN 1 ELSE 0 END,
+                total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + ?,
+                current_streak = CASE WHEN ? THEN COALESCE(current_streak, 0) + 1 ELSE 0 END,
+                best_streak = MAX(COALESCE(best_streak, 0), CASE WHEN ? THEN COALESCE(current_streak, 0) + 1 ELSE 0 END)
+             WHERE id = ?",
+            won,
             duration_seconds,
+            won,
+            won,
             user_id
         )
         .execute(&mut *tx)
         .await?;
-
-        // Update user's win streaks
-        if won {
-            sqlx::query!(
-                "UPDATE users SET 
-                    current_streak = COALESCE(current_streak, 0) + 1,
-                    best_streak = MAX(COALESCE(best_streak, 0), COALESCE(current_streak, 0) + 1)
-                WHERE id = ?",
-                user_id
-            )
-            .execute(&mut *tx)
-            .await?;
-        } else {
-            sqlx::query!(
-                "UPDATE users SET current_streak = 0 WHERE id = ?",
-                user_id
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
 
         // Create variables to avoid temporary values
         let stats_id = Uuid::new_v4().to_string();
@@ -179,17 +172,17 @@ impl StatsService {
         .fetch_one(pool)
         .await?;
 
-let user = User {
-    id: user_row.id,
-    username: user_row.username,
-    total_games: user_row.total_games as i32,
-    games_won: user_row.games_won as i32,
-    created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(user_row.created_at, chrono::Utc),
-    total_play_time_seconds: user_row.total_play_time_seconds.map(|v| v as i32),
-    current_streak: user_row.current_streak.map(|v| v as i32),
-    best_streak: user_row.best_streak.map(|v| v as i32),
-    estimated_elo: user_row.estimated_elo.map(|v| v as i32),
-};
+        let user = User {
+            id: user_row.id,
+            username: user_row.username,
+            total_games: user_row.total_games as i32,
+            games_won: user_row.games_won as i32,
+            created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(user_row.created_at, chrono::Utc),
+            total_play_time_seconds: user_row.total_play_time_seconds.map(|v| v as i32),
+            current_streak: user_row.current_streak.map(|v| v as i32),
+            best_streak: user_row.best_streak.map(|v| v as i32),
+            estimated_elo: user_row.estimated_elo.map(|v| v as i32),
+        };
 
         // Fetch personal records
         let record_rows = sqlx::query!(
@@ -267,10 +260,10 @@ let user = User {
         let mut estimated_elo = 800i64;
         
         for stat in stats {
-let games_won = stat.games_won as f64;
-let games_played = stat.games_played as f64;
-let win_rate = games_won / games_played;
-let level_elo = stat.difficulty as i64 * 100;
+            let games_won = stat.games_won as f64;
+            let games_played = stat.games_played as f64;
+            let win_rate = games_won / games_played;
+            let level_elo = stat.difficulty as i64 * 100;
             
             // If win rate >= 50%, player can handle this difficulty level
             if win_rate >= 0.5 {
