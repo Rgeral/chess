@@ -1,26 +1,39 @@
 services:
   backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
+    container_name: chess-backend
+    image: chess-backend:local
+    build:
+      context: ./backend
+      dockerfile: dockerfile
     volumes:
       - db_data:/app/data
     environment:
-      DATABASE_URL: sqlite:/app/data/chess.db
-      CORS_ORIGIN: https://chess.rdevs.fr
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && ./chess-backend"
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/chess.db}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      RUST_LOG: ${RUST_LOG:-info}
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-1}
+    command: ["./chess-backend"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -X POST -H 'Content-Type: application/json' --data '{\"query\":\"{__typename}\"}' http://127.0.0.1:8080/graphql >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
   frontend:
+    container_name: chess-frontend
+    image: chess-frontend:local
     build:
       context: ./frontend
       dockerfile: dockerfile
       args:
-        VITE_GRAPHQL_API_URL: https://chess.rdevs.fr/graphql
+        VITE_GRAPHQL_API_URL: ${VITE_GRAPHQL_API_URL:-/graphql}
     ports:
-      - "8081:80"
+      - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

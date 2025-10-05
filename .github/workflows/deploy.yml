@@ -25,7 +25,7 @@ jobs:
           host: 192.168.1.21
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "backend/Cargo.toml,backend/dockerfile,backend/migrations/**,backend/src/**,frontend/**,docker-compose.yml,docker-compose-stockfish.yml,README.md"
+          source: "backend/Cargo.toml,backend/Cargo.lock,backend/dockerfile,backend/migrations/**,backend/src/**,frontend/**,docker-compose.yml,docker-compose-stockfish.yml,README.md,scripts/**"
           target: "/home/rgeral/chess/chess"
 
       - name: Deploy via SSH
@@ -35,7 +35,88 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /home/rgeral/chess/chess
+
+            # Ensure VM .env exists with prod overrides
+            if [ ! -f .env ]; then
+              printf '%s\n' \
+                'DATABASE_URL=sqlite:///app/data/chess.db' \
+                'CORS_ORIGIN=https://chess.rdevs.fr' \
+                'RUST_LOG=info' \
+                'RUST_BACKTRACE=1' > .env
+            fi
+
+            # Validate compose
+            docker-compose -f docker-compose.yml config >/dev/null
+
+            # Stop old stack (ignore errors)
             docker-compose down --remove-orphans || true
-            docker-compose build
-            docker-compose up -d --remove-orphans
+
+            # Build images fresh
+            DOCKER_BUILDKIT=1 docker-compose build
+
+            # Run migrations using the new backend image on the prod volume
+            echo "== Running migrations =="
+            if ! docker-compose run --rm \
+              -e DATABASE_URL="${DATABASE_URL:-sqlite:///app/data/chess.db}" \
+              backend sh -lc 'set -eu; mkdir -p /app/data && chmod 777 /app/data; ls -la /app /app/migrations /app/data || true; echo "[sqlx migrate run]"; sqlx migrate run | tee /app/data/migrate_last.log'; then
+              echo "Migrations failed. Inspecting volume logs:" >&2
+              docker run --rm -v db_data:/v busybox sh -lc 'ls -la /v; echo "--- migrate_last.log ---"; sed -n "1,200p" /v/migrate_last.log 2>/dev/null || echo "(no migrate_last.log)"; echo "--- boot.log ---"; sed -n "1,200p" /v/boot.log 2>/dev/null || echo "(no boot.log)"'
+              exit 1
+            fi
+
+            # Start backend only to avoid depends_on failing the whole up
+            docker-compose up -d --remove-orphans backend || true
+
+            # Wait for backend health
+            for i in $(seq 1 60); do
+              cid=$(docker-compose ps -q backend || true)
+              [ -n "$cid" ] || { echo 'backend container not found'; sleep 2; continue; }
+              st=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo '')
+              [ "$st" = healthy ] && { echo 'Backend healthy'; break; }
+              echo "Waiting for backend health ($i) (status=$st)"
+              docker inspect "$cid" -f '{{range .State.Health.Log}}{{.End}} | code={{.ExitCode}} | {{.Output}}{{"\n"}}{{end}}' | tail -n 5 || true
+              sleep 2;
+            done
+
+            st=$(docker inspect -f '{{.State.Health.Status}}' $(docker-compose ps -q backend) 2>/dev/null || echo '')
+            if [ "$st" != healthy ]; then
+              echo 'Backend not healthy — logs:' >&2
+              docker-compose logs --tail=200 backend || true
+              echo 'State:' >&2
+              docker inspect $(docker-compose ps -q backend) -f '{{json .State}}' || true
+              echo 'Volume logs:' >&2
+              docker run --rm -v db_data:/v busybox sh -lc 'ls -la /v; echo "--- migrate_last.log ---"; sed -n "1,200p" /v/migrate_last.log 2>/dev/null || echo "(no migrate_last.log)"; echo "--- boot.log ---"; sed -n "1,200p" /v/boot.log 2>/dev/null || echo "(no boot.log)"'
+              exit 1
+            fi
+
+            # Start frontend now that backend is healthy
+            docker-compose up -d --remove-orphans frontend
+
+            # Wait for nginx (frontend) readiness before smoke tests
+            echo 'Waiting for frontend (nginx) to be ready on :80'
+            ready=0
+            for i in $(seq 1 60); do
+              if curl -fsS -o /dev/null http://127.0.0.1/_app/version.json; then
+                echo 'Frontend ready'
+                ready=1
+                break
+              fi
+              echo "Waiting for nginx ($i)"
+              sleep 2
+            done
+            if [ "$ready" -ne 1]; then
+              echo 'Frontend not ready — logs:' >&2
+              docker-compose logs --tail=200 frontend || true
+              echo 'State:' >&2
+              docker inspect $(docker-compose ps -q frontend) -f '{{json .State}}' || true
+              exit 1
+            fi
+
+            # Smoke tests through nginx
+            curl -fsS -D - -o /dev/null http://127.0.0.1/_app/version.json | head -n1
+            curl -fsS -D - -o /dev/null -X POST \
+              -H 'Content-Type: application/json' \
+              --data '{"query":"{__typename}"}' \
+              http://127.0.0.1/graphql | head -n1

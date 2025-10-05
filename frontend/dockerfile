@@ -5,11 +5,12 @@ COPY . .
 # Permettre de définir l’URL GraphQL au build (fallback /graphql)
 ARG VITE_GRAPHQL_API_URL=/graphql
 ENV VITE_GRAPHQL_API_URL=${VITE_GRAPHQL_API_URL}
+ENV CI=true
 
 # Si .env.production existe, on le copie; sinon, on génère .env depuis l’ARG
 RUN if [ -f .env.production ]; then cp .env.production .env; else echo "VITE_GRAPHQL_API_URL=${VITE_GRAPHQL_API_URL}" > .env; fi \
-	&& npm ci \
-	&& npm run build
+	&& npm ci --no-audit --no-fund --progress=false \
+	&& npm run build --silent
 
 FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html

@@ -24,6 +24,9 @@ use graphql::{QueryRoot, MutationRoot};
 use std::fs::{OpenOptions};
 use std::io::Write;
 
+/// Lightweight health probe
+async fn healthz() -> &'static str { "ok" }
+
 /// Main application entry point
 #[tokio::main]
 async fn main() {
@@ -58,7 +61,7 @@ async fn main() {
     info!("🌍 CORS_ORIGIN = {}", cors_origin);
 
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:chess.db".to_string());
+        .unwrap_or_else(|_| "sqlite:///app/data/chess.db".to_string());
     info!("🗄️ DATABASE_URL = {}", database_url);
 
     // Connect to database
@@ -67,6 +70,10 @@ async fn main() {
         Ok(opts) => opts.create_if_missing(true),
         Err(e) => {
             error!("❌ Invalid DATABASE_URL: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - Invalid DATABASE_URL: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
             std::process::exit(1);
         }
     };
@@ -78,6 +85,10 @@ async fn main() {
         }
         Err(e) => {
             error!("❌ Failed to connect to database: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - DB connect error: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
             std::process::exit(1);
         }
     };
@@ -86,6 +97,10 @@ async fn main() {
     info!("📦 Running migrations...");
     if let Err(e) = sqlx::migrate!("./migrations").run(&pool).await {
         error!("❌ Failed to run migrations: {}", e);
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+            let _ = writeln!(f, "{} - Migration error: {}", chrono::Utc::now(), e);
+            let _ = f.flush();
+        }
         std::process::exit(1);
     }
     info!("✅ Migrations applied");
@@ -109,6 +124,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(graphiql))
         .route("/graphql", post(graphql_handler))
+        .route("/healthz", get(healthz))
         .layer(Extension(schema))
         .layer(cors);
 
@@ -134,6 +150,12 @@ async fn main() {
         }
         Err(e) => {
             error!("❌ Server crashed: {}", e);
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
+                let _ = writeln!(f, "{} - Server crashed: {}", chrono::Utc::now(), e);
+                let _ = f.flush();
+            }
+            // Échec explicite pour éviter code de sortie 0
+            std::process::exit(1);
         }
     }
 }
