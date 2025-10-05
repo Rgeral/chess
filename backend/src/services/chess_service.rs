@@ -26,6 +26,32 @@ impl ChessService {
         }
     }
 
+	/// Determines the en passant target square after a pawn's double move
+	/// 
+	/// # Arguments
+	/// * `from` - Starting square of the pawn
+	/// * `to` - Ending square of the pawn
+	/// * `piece` - Piece being moved
+	/// 
+	/// # Returns
+	/// Option<String> - En passant target square in algebraic notation or None
+	fn en_passant_target(from: &Square, to: &Square, piece: Option<Piece>) -> Option<String> {
+        use std::str::FromStr;
+        if piece != Some(Piece::Pawn) {
+            return None;
+        }
+        let from_s = format!("{}", from); // ex "g7"
+        let to_s = format!("{}", to);     // ex "g5"
+        let from_rank = from_s.chars().nth(1)?.to_digit(10)? as i32;
+        let to_rank = to_s.chars().nth(1)?.to_digit(10)? as i32;
+        if (from_rank - to_rank).abs() == 2 {
+            let file = from_s.chars().next()?;
+            let ep_rank = (from_rank + to_rank) / 2;
+            return Some(format!("{}{}", file, ep_rank));
+        }
+        None
+    }
+
     /// Applies a chess move to a position and returns the new position
     /// 
     /// # Arguments
@@ -34,7 +60,7 @@ impl ChessService {
     /// 
     /// # Returns
     /// Result<String, String> - New FEN position or error message
-pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
+	pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
         let mut board = Board::from_str(fen).map_err(|e| format!("Invalid FEN: {}", e))?;
         
         println!("🎯 Processing move: {}", move_str);
@@ -66,13 +92,33 @@ pub fn make_move(fen: &str, move_str: &str) -> Result<String, String> {
                 .map_err(|e| format!("Invalid move format: {}", e))?
         };
         
-        if !board.legal(chess_move) {
-            return Err(format!("Illegal move: {}", move_str));
-        }
+        let from_square = chess_move.get_source();
+		let to_square = chess_move.get_dest();
+
+		// Check legality without consuming the ChessMove
+		let legal = MoveGen::new_legal(&board).any(|m| m == chess_move);
+		if !legal {
+			return Err(format!("Illegal move: {}", move_str));
+		}
+
+		// Determine moved piece before applying the move
+        let moved_piece = board.piece_on(from_square);
         
         board = board.make_move_new(chess_move);
         println!("✅ Move applied successfully");
-        Ok(board.to_string())
+
+		// Build FEN and ensure en-passant target is correct for double pawn-step
+        let mut fen_after = board.to_string();
+        if let Some(ep) = Self::en_passant_target(&from_square, &to_square, moved_piece) {
+            // replace the 4th field (en-passant) with our computed target if it's different
+            let mut parts: Vec<String> = fen_after.split_whitespace().map(|s| s.to_string()).collect();
+            if parts.len() == 6 && parts[3] != ep {
+                parts[3] = ep;
+                fen_after = parts.join(" ");
+            }
+        }
+
+        Ok(fen_after)
     }
 
     /// Checks if the game is over and determines the winner

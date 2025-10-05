@@ -10,17 +10,17 @@ const apiUrl = raw.startsWith('http')
       : raw);
 
 export const graphqlClient = new GraphQLClient(apiUrl, {
-    headers: {
-        'Content-Type': 'application/json',
-    },
+	headers: {
+		'Content-Type': 'application/json'
+	}
 });
 
 // Fonction helper pour les requêtes
 export async function executeGraphQL<T = any>(query: string, variables?: any): Promise<T> {
-    try {
-        return await graphqlClient.request<T>(query, variables);
-    } catch (error) {
-        console.error('GraphQL Error:', error);
-        throw error;
-    }
+	try {
+		return await graphqlClient.request<T>(query, variables);
+	} catch (error) {
+		console.error('GraphQL Error:', error);
+		throw error;
+	}
 }
