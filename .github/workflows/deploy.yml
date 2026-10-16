@@ -22,7 +22,7 @@ jobs:
       - name: Copy files to server via SSH
         uses: appleboy/scp-action@v1
         with:
-          host: 192.168.1.21
+          host: 192.168.1.118
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: "backend/Cargo.toml,backend/Cargo.lock,backend/dockerfile,backend/migrations/**,backend/src/**,frontend/**,docker-compose.yml,docker-compose-stockfish.yml,README.md,scripts/**"
@@ -31,7 +31,7 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 192.168.1.21
+          host: 192.168.1.118
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
