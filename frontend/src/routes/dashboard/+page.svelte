@@ -176,7 +176,7 @@
 				>
 					<h2 class="text-xl font-semibold text-foreground mb-2">Create Your Profile</h2>
 					<p class="text-muted-foreground mb-4">
-						Enter a username to start playing and tracking your progress.
+						Enter a username to start playing and tracking your progress. test
 					</p>
 					<div class="flex gap-3">
 						<input
