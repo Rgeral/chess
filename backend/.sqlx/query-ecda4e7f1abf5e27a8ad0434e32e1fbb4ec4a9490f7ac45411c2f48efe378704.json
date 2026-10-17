@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, user_id, difficulty, games_played, games_won, \n                    total_time_seconds, average_time_seconds, total_moves, average_moves \n             FROM user_level_stats WHERE user_id = $1 ORDER BY difficulty ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "difficulty",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "games_played",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "games_won",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "average_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "total_moves",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "average_moves",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ecda4e7f1abf5e27a8ad0434e32e1fbb4ec4a9490f7ac45411c2f48efe378704"
+}

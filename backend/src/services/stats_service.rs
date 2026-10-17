@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use uuid::Uuid;
 use crate::models::{User, UserRecord, UserLevelStats, UserProfile};
 
@@ -21,7 +21,7 @@ impl StatsService {
     /// - Level-specific statistics (games played, won, time, moves)
     /// - Personal records if applicable
     pub async fn update_game_stats(
-        pool: &SqlitePool,
+        pool: &PgPool,
         user_id: &str,
         difficulty: i32,
         duration_seconds: i32,
@@ -41,15 +41,13 @@ impl StatsService {
         sqlx::query!(
             "UPDATE users SET 
                 total_games = COALESCE(total_games, 0) + 1,
-                games_won = COALESCE(games_won, 0) + CASE WHEN ? THEN 1 ELSE 0 END,
-                total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + ?,
-                current_streak = CASE WHEN ? THEN COALESCE(current_streak, 0) + 1 ELSE 0 END,
-                best_streak = MAX(COALESCE(best_streak, 0), CASE WHEN ? THEN COALESCE(current_streak, 0) + 1 ELSE 0 END)
-             WHERE id = ?",
+                games_won = COALESCE(games_won, 0) + CASE WHEN $1::boolean THEN 1 ELSE 0 END,
+                total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + $2::integer,
+                current_streak = CASE WHEN $1 THEN COALESCE(current_streak, 0) + 1 ELSE 0 END,
+                best_streak = GREATEST(COALESCE(best_streak, 0), CASE WHEN $1 THEN COALESCE(current_streak, 0) + 1 ELSE 0 END)
+             WHERE id = $3",
             won,
             duration_seconds,
-            won,
-            won,
             user_id
         )
         .execute(&mut *tx)
@@ -62,23 +60,18 @@ impl StatsService {
         // Update level-specific statistics
         sqlx::query!(
             "INSERT INTO user_level_stats (id, user_id, difficulty, games_played, games_won, total_time_seconds, total_moves)
-             VALUES (?, ?, ?, 1, ?, ?, ?)
+             VALUES ($1, $2, $3, 1, $4, $5, $6)
              ON CONFLICT(user_id, difficulty) DO UPDATE SET
-                games_played = games_played + 1,
-                games_won = games_won + ?,
-                total_time_seconds = total_time_seconds + ?,
-                total_moves = total_moves + ?,
-                average_time_seconds = (total_time_seconds + ?) / (games_played + 1),
-                average_moves = (total_moves + ?) / (games_played + 1)",
+                games_played = user_level_stats.games_played + 1,
+                games_won = user_level_stats.games_won + $4,
+                total_time_seconds = user_level_stats.total_time_seconds + $5,
+                total_moves = user_level_stats.total_moves + $6,
+                average_time_seconds = (user_level_stats.total_time_seconds + $5) / (user_level_stats.games_played + 1),
+                average_moves = (user_level_stats.total_moves + $6) / (user_level_stats.games_played + 1)",
             stats_id,
             user_id,
             difficulty,
             games_won_val,
-            duration_seconds,
-            moves_count,
-            games_won_val,
-            duration_seconds,
-            moves_count,
             duration_seconds,
             moves_count
         )
@@ -106,7 +99,7 @@ impl StatsService {
     /// 
     /// Only updates if this is a new record (faster completion time)
     async fn update_personal_record(
-        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         user_id: &str,
         difficulty: i32,
         duration_seconds: i32,
@@ -114,7 +107,7 @@ impl StatsService {
     ) -> Result<(), sqlx::Error> {
         // Check current record for this difficulty
         let current_record = sqlx::query!(
-            "SELECT best_time_seconds FROM user_records WHERE user_id = ? AND difficulty = ?",
+            "SELECT best_time_seconds FROM user_records WHERE user_id = $1 AND difficulty = $2",
             user_id,
             difficulty
         )
@@ -130,16 +123,14 @@ impl StatsService {
             let record_id = Uuid::new_v4().to_string();
             sqlx::query!(
                 "INSERT INTO user_records (id, user_id, difficulty, best_time_seconds, moves_count)
-                 VALUES (?, ?, ?, ?, ?)
+                 VALUES ($1, $2, $3, $4, $5)
                  ON CONFLICT(user_id, difficulty) DO UPDATE SET
-                    best_time_seconds = ?,
-                    moves_count = ?,
-                    achieved_at = CURRENT_TIMESTAMP",
+                    best_time_seconds = $4,
+                    moves_count = $5,
+                    achieved_at = NOW()",
                 record_id,
                 user_id,
                 difficulty,
-                duration_seconds,
-                moves_count,
                 duration_seconds,
                 moves_count
             )
@@ -161,12 +152,12 @@ impl StatsService {
     /// 
     /// # Returns
     /// UserProfile containing basic user info, personal records, and level statistics
-    pub async fn get_user_profile(pool: &SqlitePool, user_id: &str) -> Result<UserProfile, sqlx::Error> {
+    pub async fn get_user_profile(pool: &PgPool, user_id: &str) -> Result<UserProfile, sqlx::Error> {
         // Fetch user data
         let user_row = sqlx::query!(
             "SELECT id, username, total_games, games_won, created_at, 
                     total_play_time_seconds, current_streak, best_streak, estimated_elo 
-             FROM users WHERE id = ?",
+             FROM users WHERE id = $1",
             user_id
         )
         .fetch_one(pool)
@@ -177,7 +168,7 @@ impl StatsService {
             username: user_row.username,
             total_games: user_row.total_games as i32,
             games_won: user_row.games_won as i32,
-            created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(user_row.created_at, chrono::Utc),
+            created_at: user_row.created_at,
             total_play_time_seconds: user_row.total_play_time_seconds.map(|v| v as i32),
             current_streak: user_row.current_streak.map(|v| v as i32),
             best_streak: user_row.best_streak.map(|v| v as i32),
@@ -187,7 +178,7 @@ impl StatsService {
         // Fetch personal records
         let record_rows = sqlx::query!(
             "SELECT id, user_id, difficulty, best_time_seconds, moves_count, achieved_at 
-            FROM user_records WHERE user_id = ? ORDER BY difficulty ASC",
+            FROM user_records WHERE user_id = $1 ORDER BY difficulty ASC",
             user_id
         )
         .fetch_all(pool)
@@ -199,13 +190,13 @@ impl StatsService {
             difficulty: row.difficulty as i32,
             best_time_seconds: row.best_time_seconds as i32,
             moves_count: row.moves_count as i32,
-            achieved_at: Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(row.achieved_at, chrono::Utc)),
+            achieved_at: Some(row.achieved_at),
         }).collect();
         // Fetch level statistics
         let stats_rows = sqlx::query!(
             "SELECT id, user_id, difficulty, games_played, games_won, 
                     total_time_seconds, average_time_seconds, total_moves, average_moves 
-             FROM user_level_stats WHERE user_id = ? ORDER BY difficulty ASC",
+             FROM user_level_stats WHERE user_id = $1 ORDER BY difficulty ASC",
             user_id
         )
         .fetch_all(pool)
@@ -243,11 +234,11 @@ impl StatsService {
     /// - Base ELO is 800
     /// - For each difficulty level with >50% win rate, player is considered to be at that level
     /// - Each difficulty level corresponds to ~100 ELO points
-    pub async fn estimate_player_elo(pool: &SqlitePool, user_id: &str) -> Result<i32, sqlx::Error> {
+    pub async fn estimate_player_elo(pool: &PgPool, user_id: &str) -> Result<i32, sqlx::Error> {
         let stats = sqlx::query!(
             "SELECT difficulty, games_played, games_won 
              FROM user_level_stats 
-             WHERE user_id = ? AND games_played > 0",
+             WHERE user_id = $1 AND games_played > 0",
             user_id
         )
         .fetch_all(pool)
@@ -275,7 +266,7 @@ impl StatsService {
 
         // Update user's estimated ELO in database
         sqlx::query!(
-            "UPDATE users SET estimated_elo = ? WHERE id = ?",
+            "UPDATE users SET estimated_elo = $1 WHERE id = $2",
             final_elo,
             user_id
         )

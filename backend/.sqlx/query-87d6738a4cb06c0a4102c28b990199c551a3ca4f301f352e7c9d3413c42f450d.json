@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, username, total_games, games_won, created_at, total_play_time_seconds, current_streak, best_streak, estimated_elo FROM users WHERE username = $1 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "total_games",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "games_won",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_play_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "current_streak",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "best_streak",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "estimated_elo",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "87d6738a4cb06c0a4102c28b990199c551a3ca4f301f352e7c9d3413c42f450d"
+}

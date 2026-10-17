@@ -13,8 +13,8 @@ use axum::{
 use async_graphql::{http::GraphiQLSource, EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use dotenv::dotenv;
-use sqlx::SqlitePool;
-use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::PgPool;
+use sqlx::postgres::PgConnectOptions;
 use std::str::FromStr;
 use tower_http::cors::{Any, CorsLayer};
 use std::env;
@@ -61,13 +61,13 @@ async fn main() {
     info!("🌍 CORS_ORIGIN = {}", cors_origin);
 
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:///app/data/chess.db".to_string());
-    info!("🗄️ DATABASE_URL = {}", database_url);
+        .expect("DATABASE_URL must be set (e.g. postgres://user:pass@localhost:5432/chess)");
+    info!("🗄️ Database URL configured");
 
     // Connect to database
     info!("🔌 Connecting to database...");
-    let connect_opts = match SqliteConnectOptions::from_str(&database_url) {
-        Ok(opts) => opts.create_if_missing(true),
+    let connect_opts = match PgConnectOptions::from_str(&database_url) {
+        Ok(opts) => opts,
         Err(e) => {
             error!("❌ Invalid DATABASE_URL: {}", e);
             if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("/app/data/boot.log") {
@@ -78,7 +78,7 @@ async fn main() {
         }
     };
 
-    let pool = match SqlitePool::connect_with(connect_opts).await {
+    let pool = match PgPool::connect_with(connect_opts).await {
         Ok(pool) => {
             info!("✅ Connected to database");
             pool
@@ -130,9 +130,10 @@ async fn main() {
 
     // Start server
     info!("🚀 Binding server on 0.0.0.0:8080 ...");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
-        .expect("❌ Failed to bind port 8080");
+        .unwrap_or_else(|e| panic!("❌ Failed to bind port {}: {}", port, e));
 
     info!("✅ Server bound successfully!");
     info!("🚀 Chess GraphQL API ready at http://0.0.0.0:8080/graphql");

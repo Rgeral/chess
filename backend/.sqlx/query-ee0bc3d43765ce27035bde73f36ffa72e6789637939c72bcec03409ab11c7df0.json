@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_level_stats (id, user_id, difficulty, games_played, games_won, total_time_seconds, total_moves)\n             VALUES ($1, $2, $3, 1, $4, $5, $6)\n             ON CONFLICT(user_id, difficulty) DO UPDATE SET\n                games_played = user_level_stats.games_played + 1,\n                games_won = user_level_stats.games_won + $4,\n                total_time_seconds = user_level_stats.total_time_seconds + $5,\n                total_moves = user_level_stats.total_moves + $6,\n                average_time_seconds = (user_level_stats.total_time_seconds + $5) / (user_level_stats.games_played + 1),\n                average_moves = (user_level_stats.total_moves + $6) / (user_level_stats.games_played + 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee0bc3d43765ce27035bde73f36ffa72e6789637939c72bcec03409ab11c7df0"
+}

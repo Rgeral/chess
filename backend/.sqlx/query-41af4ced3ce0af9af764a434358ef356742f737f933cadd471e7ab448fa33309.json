@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET \n                total_games = COALESCE(total_games, 0) + 1,\n                games_won = COALESCE(games_won, 0) + CASE WHEN $1::boolean THEN 1 ELSE 0 END,\n                total_play_time_seconds = COALESCE(total_play_time_seconds, 0) + $2::integer,\n                current_streak = CASE WHEN $1 THEN COALESCE(current_streak, 0) + 1 ELSE 0 END,\n                best_streak = GREATEST(COALESCE(best_streak, 0), CASE WHEN $1 THEN COALESCE(current_streak, 0) + 1 ELSE 0 END)\n             WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "41af4ced3ce0af9af764a434358ef356742f737f933cadd471e7ab448fa33309"
+}

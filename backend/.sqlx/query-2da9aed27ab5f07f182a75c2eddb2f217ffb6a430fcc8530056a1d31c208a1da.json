@@ -1,66 +1,68 @@
 {
-  "db_name": "SQLite",
-  "query": "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE user_id = ? ORDER BY created_at DESC",
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = $1",
   "describe": {
     "columns": [
       {
-        "name": "id",
         "ordinal": 0,
+        "name": "id",
         "type_info": "Text"
       },
       {
-        "name": "user_id",
         "ordinal": 1,
+        "name": "user_id",
         "type_info": "Text"
       },
       {
-        "name": "difficulty",
         "ordinal": 2,
-        "type_info": "Integer"
+        "name": "difficulty",
+        "type_info": "Int4"
       },
       {
-        "name": "fen",
         "ordinal": 3,
+        "name": "fen",
         "type_info": "Text"
       },
       {
-        "name": "status",
         "ordinal": 4,
+        "name": "status",
         "type_info": "Text"
       },
       {
-        "name": "result",
         "ordinal": 5,
+        "name": "result",
         "type_info": "Text"
       },
       {
-        "name": "created_at",
         "ordinal": 6,
-        "type_info": "Datetime"
+        "name": "created_at",
+        "type_info": "Timestamptz"
       },
       {
-        "name": "start_time",
         "ordinal": 7,
-        "type_info": "Datetime"
+        "name": "start_time",
+        "type_info": "Timestamptz"
       },
       {
-        "name": "end_time",
         "ordinal": 8,
-        "type_info": "Datetime"
+        "name": "end_time",
+        "type_info": "Timestamptz"
       },
       {
-        "name": "duration_seconds",
         "ordinal": 9,
-        "type_info": "Integer"
+        "name": "duration_seconds",
+        "type_info": "Int4"
       },
       {
-        "name": "moves_count",
         "ordinal": 10,
-        "type_info": "Integer"
+        "name": "moves_count",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
@@ -76,5 +78,5 @@
       false
     ]
   },
-  "hash": "ebcd91046a39aef000b729e904cd6fe3aab62bb6e00c57968282bb0c92ae5b14"
+  "hash": "2da9aed27ab5f07f182a75c2eddb2f217ffb6a430fcc8530056a1d31c208a1da"
 }

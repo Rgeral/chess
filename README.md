@@ -5,21 +5,19 @@ Application d’échecs complète avec un backend Rust (GraphQL) et un frontend 
 • Démo en ligne: https://chess.rdevs.fr/
 
 ## Aperçu
-- Backend: Rust, Axum, Async-GraphQL, SQLx (SQLite), Stockfish (moteur UCI)
+- Backend: Rust, Axum, Async-GraphQL, SQLx (PostgreSQL), Stockfish (moteur UCI)
 - Frontend: SvelteKit + Vite, client GraphQL (graphql-request)
-- Base de données: SQLite (fichier `backend/chess.db`), migrations auto au démarrage
+- Base de données: PostgreSQL 16 (volume Docker `pg_data`), migrations auto au démarrage
 - API: GraphQL sur `/graphql` (+ IDE GraphiQL sur `/` en dev/containers)
 - Conteneurs: Docker + docker-compose (Nginx pour servir le frontend)
 
 ## Lancer avec Docker (recommandé)
-1) Créez les variables d’environnement (une fois) pour le build:
-
-- `backend/.env.production` (copié comme `.env` dans l’image):
+1) Créez le fichier `.env` à la racine (ignoré par git) à partir du modèle, puis changez le mot de passe:
 ```
-DATABASE_URL=sqlite:chess.db
-# Si vous utilisez le frontend servi par Nginx sur 8081
-CORS_ORIGIN=http://localhost:8081
+cp .env.example .env
+# éditez POSTGRES_PASSWORD (et DATABASE_URL si vous lancez aussi le backend hors Docker)
 ```
+Le service `postgres` a un healthcheck (`pg_isready`) et le backend ne démarre qu’une fois la base saine. Dans Docker, `DATABASE_URL` est construit par `docker-compose.yml` à partir de `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`.
 
 - `frontend/.env.production` (copié comme `.env` dans l’image):
 ```
@@ -43,7 +41,7 @@ docker compose down
 ```
 
 Notes:
-- Le fichier SQLite est monté: `./backend/chess.db -> /app/chess.db`
+- Les données Postgres vivent dans le volume nommé `pg_data` (`docker compose down` les conserve, `down -v` les supprime)
 - L’image backend installe Stockfish automatiquement
 
 ## Lancer en développement (sans Docker)
@@ -55,16 +53,15 @@ Prérequis:
 1) Backend
 ```
 cd backend
-# Créez un fichier .env si besoin
-# DATABASE_URL par défaut: sqlite:chess.db
-cat > .env <<'EOF'
-DATABASE_URL=sqlite:chess.db
-CORS_ORIGIN=http://localhost:5173
-EOF
+# Démarrer Postgres seul (depuis la racine du repo, .env créé comme ci-dessus)
+docker compose up -d postgres
 
-sqlx migrate run if DB does not exist
+# DATABASE_URL est obligatoire (adaptez le port si POSTGRES_PORT != 5432)
+export DATABASE_URL=postgres://chess:<mot-de-passe>@localhost:5432/chess
+export CORS_ORIGIN=http://localhost:5173
+# PORT=8080 par défaut
 
-cargo run
+cargo run   # applique les migrations au démarrage
 ```
 Le backend écoute sur http://localhost:8080, exécute les migrations SQLx et expose:
 - GraphQL: `/graphql`
@@ -88,10 +85,21 @@ Mutations/queries principales disponibles côté frontend:
 
 Vous pouvez explorer le schéma et tester des requêtes via GraphiQL sur http://localhost:8080/.
 
+## Sauvegarde / restauration (Postgres)
+```
+# Sauvegarde (service postgres du compose)
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' > chess_$(date +%F).sql
+
+# Restauration
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < chess_AAAA-MM-JJ.sql
+```
+Ne committez jamais les dumps ni le fichier `.env`.
+
 ## Dépannage
 - Erreur CORS: vérifiez que `CORS_ORIGIN` (backend) correspond exactement à l’URL du frontend (5173 en dev, 8081 en Docker).
 - Stockfish introuvable: installez-le localement ou utilisez Docker. Le backend tente plusieurs chemins (`stockfish`, `/usr/games/stockfish`, `/usr/local/bin/stockfish`).
-- Base SQLite: le fichier `backend/chess.db` est créé/validé au démarrage; les migrations dans `backend/migrations` s’appliquent automatiquement.
+- Base Postgres: les migrations dans `backend/migrations` s’appliquent automatiquement au démarrage. Si le port 5432 est déjà pris, définissez `POSTGRES_PORT` dans `.env`.
+- Après modification d’une requête `sqlx::query!`, régénérez les métadonnées offline (utilisées par le build Docker): `cd backend && cargo sqlx prepare` (base migrée requise) puis committez `backend/.sqlx/`.
 
 ## Structure
 - `backend/`: serveur Axum + GraphQL, services (chess/stockfish), migrations SQLx

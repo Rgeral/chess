@@ -1,14 +1,35 @@
 services:
+  postgres:
+    container_name: chess-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chess}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (see .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-chess}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      # Exposed on loopback only, for local `cargo run` / pg_dump
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   backend:
     container_name: chess-backend
     image: chess-backend:local
     build:
       context: ./backend
       dockerfile: dockerfile
-    volumes:
-      - db_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite:///app/data/chess.db}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chess}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (see .env.example)}@postgres:5432/${POSTGRES_DB:-chess}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       RUST_LOG: ${RUST_LOG:-info}
       RUST_BACKTRACE: ${RUST_BACKTRACE:-1}
@@ -37,4 +58,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  db_data:
+  pg_data:

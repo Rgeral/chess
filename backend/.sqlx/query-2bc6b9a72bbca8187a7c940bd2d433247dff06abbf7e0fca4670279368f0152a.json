@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT difficulty, games_played, games_won \n             FROM user_level_stats \n             WHERE user_id = $1 AND games_played > 0",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "difficulty",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "games_played",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "games_won",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2bc6b9a72bbca8187a7c940bd2d433247dff06abbf7e0fca4670279368f0152a"
+}

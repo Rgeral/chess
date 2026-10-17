@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_records (id, user_id, difficulty, best_time_seconds, moves_count)\n                 VALUES ($1, $2, $3, $4, $5)\n                 ON CONFLICT(user_id, difficulty) DO UPDATE SET\n                    best_time_seconds = $4,\n                    moves_count = $5,\n                    achieved_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bc7b5fc2bdcd443d5a46c27d2c1afed2a227f70ab1c34c0c82abbd3e87ad7e98"
+}

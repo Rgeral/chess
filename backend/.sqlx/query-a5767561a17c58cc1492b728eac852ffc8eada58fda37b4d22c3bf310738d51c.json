@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, user_id, difficulty, best_time_seconds, moves_count, achieved_at \n            FROM user_records WHERE user_id = $1 ORDER BY difficulty ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "difficulty",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "best_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "moves_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "achieved_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a5767561a17c58cc1492b728eac852ffc8eada58fda37b4d22c3bf310738d51c"
+}

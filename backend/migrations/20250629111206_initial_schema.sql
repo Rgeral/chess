@@ -4,7 +4,7 @@ CREATE TABLE users (
     username TEXT NOT NULL UNIQUE,
     total_games INTEGER NOT NULL DEFAULT 0,
     games_won INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     total_play_time_seconds INTEGER DEFAULT 0,
     current_streak INTEGER DEFAULT 0,
     best_streak INTEGER DEFAULT 0,
@@ -19,9 +19,9 @@ CREATE TABLE games (
     fen TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     result TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    start_time DATETIME,
-    end_time DATETIME,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
     duration_seconds INTEGER,
     moves_count INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -49,7 +49,7 @@ CREATE TABLE user_records (
     difficulty INTEGER NOT NULL,
     best_time_seconds INTEGER NOT NULL,
     moves_count INTEGER NOT NULL,
-    achieved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    achieved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, difficulty),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );

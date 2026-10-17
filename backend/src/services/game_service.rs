@@ -2,7 +2,7 @@ use crate::models::{Game, GameMoveResult, NewGameInput, MakeMoveInput};
 use crate::services::{ChessService, StockfishService, StatsService};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 
 /// Service responsible for managing chess games
 pub struct GameService;
@@ -16,7 +16,7 @@ impl GameService {
     /// 
     /// # Returns
     /// A new Game instance initialized with starting position
-    pub async fn create_game(pool: &SqlitePool, input: NewGameInput) -> Result<Game, String> {
+    pub async fn create_game(pool: &PgPool, input: NewGameInput) -> Result<Game, String> {
         let game = Game {
             id: Uuid::new_v4().to_string(),
             user_id: input.user_id,
@@ -33,7 +33,7 @@ impl GameService {
 
         sqlx::query!(
             "INSERT INTO games (id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
             game.id,
             game.user_id,
             game.difficulty,
@@ -62,9 +62,9 @@ impl GameService {
     /// 
     /// # Returns
     /// Option<Game> - Some(game) if found, None if not found
-    pub async fn get_game(pool: &SqlitePool, game_id: &str) -> Result<Option<Game>, String> {
+    pub async fn get_game(pool: &PgPool, game_id: &str) -> Result<Option<Game>, String> {
         let row = sqlx::query!(
-            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = ?",
+            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = $1",
             game_id
         )
         .fetch_optional(pool)
@@ -79,9 +79,9 @@ let game = Game {
     fen: row.fen,
     status: row.status,
     result: row.result,
-    created_at: DateTime::<Utc>::from_naive_utc_and_offset(row.created_at, Utc),
-    start_time: row.start_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
-    end_time: row.end_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+    created_at: row.created_at,
+    start_time: row.start_time,
+    end_time: row.end_time,
     duration_seconds: row.duration_seconds.map(|d| d as i32),
     moves_count: row.moves_count as i32,
 };
@@ -99,9 +99,9 @@ let game = Game {
     /// 
     /// # Returns
     /// Vector of games ordered by creation date (newest first)
-    pub async fn get_user_games(pool: &SqlitePool, user_id: &str) -> Result<Vec<Game>, String> {
+    pub async fn get_user_games(pool: &PgPool, user_id: &str) -> Result<Vec<Game>, String> {
         let rows = sqlx::query!(
-            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE user_id = $1 ORDER BY created_at DESC",
             user_id
         )
         .fetch_all(pool)
@@ -117,9 +117,9 @@ let game = Game {
                 fen: row.fen,
                 status: row.status,
                 result: row.result,
-                created_at: DateTime::<Utc>::from_naive_utc_and_offset(row.created_at, Utc),
-                start_time: row.start_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
-                end_time: row.end_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+                created_at: row.created_at,
+                start_time: row.start_time,
+                end_time: row.end_time,
                 duration_seconds: row.duration_seconds.map(|d| d as i32),
                 moves_count: row.moves_count as i32,
             })
@@ -144,12 +144,12 @@ let game = Game {
     /// 4. Checks if game ends after Stockfish's move
     /// 5. Updates statistics if game finishes
     /// 6. Saves updated game state to database
-    pub async fn make_move(pool: &SqlitePool, input: MakeMoveInput) -> Result<GameMoveResult, String> {
+    pub async fn make_move(pool: &PgPool, input: MakeMoveInput) -> Result<GameMoveResult, String> {
         println!("🎮 Processing move: {} in game {}", input.player_move, input.game_id);
 
         // Fetch current game state
         let row = sqlx::query!(
-            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = ?",
+            "SELECT id, user_id, difficulty, fen, status, result, created_at, start_time, end_time, duration_seconds, moves_count FROM games WHERE id = $1",
             input.game_id
         )
         .fetch_one(pool)
@@ -163,9 +163,9 @@ let game = Game {
             fen: row.fen,
             status: row.status,
             result: row.result,
-            created_at: DateTime::<Utc>::from_naive_utc_and_offset(row.created_at, Utc),
-            start_time: row.start_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
-            end_time: row.end_time.map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc)),
+            created_at: row.created_at,
+            start_time: row.start_time,
+            end_time: row.end_time,
             duration_seconds: row.duration_seconds.map(|d| d as i32),
             moves_count: row.moves_count as i32,
         };
@@ -268,7 +268,7 @@ let game = Game {
 
         // Save updated game state
         sqlx::query!(
-            "UPDATE games SET fen = ?, status = ?, result = ?, end_time = ?, duration_seconds = ?, moves_count = ? WHERE id = ?",
+            "UPDATE games SET fen = $1, status = $2, result = $3, end_time = $4, duration_seconds = $5, moves_count = $6 WHERE id = $7",
             game.fen,
             game.status,
             game.result,

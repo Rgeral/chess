@@ -2,6 +2,8 @@
 backend/chess.db
 backend/chess.db-shm
 backend/chess.db-wal
+backend/data/
+*.db
 
 # Rust
 backend/target/
@@ -15,4 +17,4 @@ frontend/build/
 # Environnement
 .env
 .env.local
-.env.production
+.env.productionchess_*.sql
