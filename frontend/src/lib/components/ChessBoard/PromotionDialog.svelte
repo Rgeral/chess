@@ -12,10 +12,10 @@
 	}>();
 
 	const promotionPieces = [
-		{ type: 'queen', symbol: '♕', name: 'Queen' },
-		{ type: 'rook', symbol: '♖', name: 'Rook' },
-		{ type: 'bishop', symbol: '♗', name: 'Bishop' },
-		{ type: 'knight', symbol: '♘', name: 'Knight' }
+		{ type: 'queen', symbol: '♛', name: 'Dame' },
+		{ type: 'rook', symbol: '♜', name: 'Tour' },
+		{ type: 'bishop', symbol: '♝', name: 'Fou' },
+		{ type: 'knight', symbol: '♞', name: 'Cavalier' }
 	] as const;
 
 	function handlePromotion(piece: 'queen' | 'rook' | 'bishop' | 'knight') {
@@ -40,15 +40,15 @@
 		tabindex="0"
 	>
 		<div class="promotion-dialog" on:click|stopPropagation tabindex="-1">
-			<h3 id="promotion-title">🎯 Promote your pawn!</h3>
-			<p>Choose which piece to promote to:</p>
+			<h3 id="promotion-title">Promotion du pion</h3>
+			<p>Choisis la pièce de remplacement :</p>
 
 			<div class="promotion-choices">
 				{#each promotionPieces as piece}
 					<button
 						class="promotion-button"
 						on:click={() => handlePromotion(piece.type)}
-						aria-label="Promote to {piece.name}"
+						aria-label="Promouvoir en {piece.name}"
 					>
 						<span class="piece-symbol">{piece.symbol}</span>
 						<span class="piece-name">{piece.name}</span>
@@ -56,8 +56,8 @@
 				{/each}
 			</div>
 
-			<button class="cancel-button" on:click={handleCancel} aria-label="Cancel promotion">
-				Cancel
+			<button class="cancel-button" on:click={handleCancel} aria-label="Annuler la promotion">
+				Annuler
 			</button>
 		</div>
 	</div>
@@ -79,10 +79,12 @@
 	}
 
 	.promotion-dialog {
-		background: white;
+		background: #181d1a;
+		color: #edebe4;
+		border: 1px solid #2a312c;
 		padding: 30px;
 		border-radius: 20px;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 		text-align: center;
 		max-width: 400px;
 		width: 90%;
@@ -112,9 +114,9 @@
 		flex-direction: column;
 		align-items: center;
 		padding: 20px;
-		background: linear-gradient(135deg, #667eea, #764ba2);
-		color: white;
-		border: none;
+		background: #222924;
+		color: #f2b544;
+		border: 1px solid #3a433d;
 		border-radius: 15px;
 		cursor: pointer;
 		transition: all 0.3s;
@@ -123,11 +125,11 @@
 
 	.promotion-button:hover {
 		transform: translateY(-3px);
-		box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+		border-color: #f2b544;
 	}
 
 	.promotion-button:focus {
-		outline: 3px solid #667eea40;
+		outline: 2px solid #f2b544;
 	}
 
 	.piece-symbol {
@@ -141,9 +143,9 @@
 	}
 
 	.cancel-button {
-		background: #6c757d;
-		color: white;
-		border: none;
+		background: transparent;
+		color: #edebe4;
+		border: 1px solid #3a433d;
 		padding: 10px 20px;
 		border-radius: 10px;
 		cursor: pointer;
@@ -152,10 +154,10 @@
 	}
 
 	.cancel-button:hover {
-		background: #5a6268;
+		background: #1e2420;
 	}
 
 	.cancel-button:focus {
-		outline: 3px solid #6c757d40;
+		outline: 2px solid #f2b544;
 	}
 </style>

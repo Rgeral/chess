@@ -119,19 +119,10 @@
 			const result = await ChessService.makeMove($gameStore.currentGame.id, playerMove);
 			gameActions.updateGameAfterMove(result);
 
-			if (result.gameOver) {
-				const outcome =
-					result.winner === 'white'
-						? 'You won! 🏆'
-						: result.winner === 'black'
-							? 'You lost! 😔'
-							: 'Draw! 🤝';
-				const time = gameActions.formatTime(result.totalTimeSeconds || $gameStore.elapsedTime);
-				alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${result.game.movesCount}`);
-			}
+			// La fin de partie est gérée par le dashboard (modale)
 		} catch (error: unknown) {
 			const msg = error instanceof Error ? error.message : String(error);
-			gameActions.setError(`Invalid move: ${msg}`);
+			gameActions.setError(`Coup invalide : ${msg}`);
 			console.error('[ChessBoard] Move error:', msg);
 		} finally {
 			gameActions.setLoading(false);

@@ -1,107 +1,179 @@
 # Chess
 
-Application d’échecs complète avec un backend Rust (GraphQL) et un frontend Svelte. Jouez contre Stockfish avec différents niveaux de difficulté, suivez vos stats et un classement simple.
+A full-stack chess web application: play against the Stockfish engine at ten difficulty levels, track your statistics and compare yourself on a simple Elo leaderboard.
 
-• Démo en ligne: https://chess.rdevs.fr/
+Live instance: https://chess.rdevs.fr/
 
-## Aperçu
-- Backend: Rust, Axum, Async-GraphQL, SQLx (PostgreSQL), Stockfish (moteur UCI)
-- Frontend: SvelteKit + Vite, client GraphQL (graphql-request)
-- Base de données: PostgreSQL 16 (volume Docker `pg_data`), migrations auto au démarrage
-- API: GraphQL sur `/graphql` (+ IDE GraphiQL sur `/` en dev/containers)
-- Conteneurs: Docker + docker-compose (Nginx pour servir le frontend)
+## Purpose of this project
 
-## Lancer avec Docker (recommandé)
-1) Créez le fichier `.env` à la racine (ignoré par git) à partir du modèle, puis changez le mot de passe:
-```
-cp .env.example .env
-# éditez POSTGRES_PASSWORD (et DATABASE_URL si vous lancez aussi le backend hors Docker)
-```
-Le service `postgres` a un healthcheck (`pg_isready`) et le backend ne démarre qu’une fois la base saine. Dans Docker, `DATABASE_URL` est construit par `docker-compose.yml` à partir de `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`.
+The application itself is deliberately simple. **The real goal of this repository is to serve as a test project for publishing an application on my self-hosted Proxmox server.**
 
-- `frontend/.env.production` (copié comme `.env` dans l’image):
+It is a realistic but small "guinea pig" that exercises everything a real service needs:
+
+- a compiled backend (Rust) that depends on an external binary (Stockfish)
+- a relational database with migrations and persistent storage (PostgreSQL)
+- a statically built frontend served by a web server (Nginx)
+- multi-container orchestration (Docker Compose, health checks, start-up ordering)
+- secrets and configuration management
+- a CI/CD pipeline that deploys to a machine that is **not** reachable from the public internet (GitHub Actions → WireGuard VPN → SSH)
+- a public domain name pointing to the self-hosted service
+
+If the whole chain works for this project, the same recipe can be reused for future self-hosted applications.
+
+## Features
+
+- Create a player profile (username only, no password; the session is kept in the browser's local storage)
+- Play as White against Stockfish, with 10 selectable difficulty levels from beginner to expert
+- Interactive board with legal-move highlighting, last-move highlighting, pawn promotion dialog, captured pieces and a game timer
+- Resign a game, with an end-of-game summary (result, time, number of moves)
+- Per-player statistics: games played, win rate, Elo estimate, per-level results and personal records
+- Global leaderboard ranked by estimated Elo
+- Responsive dashboard with a sidebar (Home, Statistics, Leaderboard) and a logout button
+
+> Some dashboard widgets (recent games, achievements, learning section) currently display mock data defined in `frontend/src/lib/mock.ts`. They are UI placeholders for future features.
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Backend language | Rust (edition 2021) |
+| Web framework | Axum 0.8 on Tokio |
+| API | GraphQL via `async-graphql` (+ GraphiQL IDE in dev/containers) |
+| Chess logic | `chess` crate (move generation and validation) |
+| AI engine | Stockfish, driven over the UCI protocol |
+| Database | PostgreSQL 16 |
+| DB access | SQLx 0.8 (compile-time checked queries, embedded migrations) |
+| Frontend framework | SvelteKit 2 with Svelte 5, TypeScript, Vite 6 |
+| Styling | Tailwind CSS 4 |
+| Board UI | Chessground (Lichess board) and chess.js |
+| API client | `graphql-request` |
+| Static build | `@sveltejs/adapter-static` |
+| Web server | Nginx (serves the frontend and proxies `/graphql` to the backend) |
+| Containers | Docker and Docker Compose |
+| CI/CD | GitHub Actions |
+| Tooling | ESLint, Prettier, svelte-check, Vitest |
+
+## Architecture
+
 ```
-# L’URL vue par le navigateur
-VITE_GRAPHQL_API_URL=http://localhost:8080/graphql
+Browser
+   │  HTTPS
+   ▼
+Reverse proxy / public domain (chess.rdevs.fr)
+   │  HTTP
+   ▼
+┌───────────────────── Docker Compose (VM on Proxmox) ─────────────────────┐
+│                                                                           │
+│  frontend (Nginx :80) ──/graphql──▶ backend (Axum :8080) ──▶ postgres     │
+│   static SvelteKit build            GraphQL + Stockfish      (volume      │
+│                                      process (UCI)            pg_data)    │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-2) Démarrez les services:
-```
-docker compose up -d --build
-```
+- The **frontend** is a static SvelteKit build served by Nginx. API calls go to the relative path `/graphql`, which Nginx forwards to the backend, so the browser only ever talks to one origin.
+- The **backend** exposes a single GraphQL endpoint. It validates moves with the `chess` crate, asks Stockfish for the AI reply, and persists users, games and statistics in PostgreSQL. Migrations in `backend/migrations` are applied automatically at start-up.
+- **PostgreSQL** stores its data in the named volume `pg_data`, so data survives container rebuilds.
 
-3) Accédez à:
-- Frontend: http://localhost:8081
-- API GraphQL: http://localhost:8080/graphql
-- GraphiQL (IDE): http://localhost:8080/
+## Deployment on Proxmox
 
-Arrêt:
-```
+The production instance runs in a VM on a self-hosted Proxmox server. Deployments are fully automated by [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `main`:
+
+1. **Connect to the private network.** The GitHub runner brings up a WireGuard tunnel (config stored in a GitHub secret), because the VM is only reachable from the home LAN.
+2. **Copy the sources.** `scp` uploads the backend sources, migrations, frontend and Compose files to the VM.
+3. **Prepare the environment.** On first deployment only, a `.env` file is generated on the VM from GitHub secrets. Later deployments keep the existing file.
+4. **Build.** Fresh Docker images are built on the VM.
+5. **Start PostgreSQL** and wait until its health check passes.
+6. **Run migrations** with the new backend image before starting the application.
+7. **Start the backend** and wait until it reports healthy (a GraphQL `{__typename}` query).
+8. **Start the frontend** and wait until Nginx answers.
+9. **Smoke tests** through Nginx: the static `/_app/version.json` file and a GraphQL request. Any failure fails the pipeline and prints the container logs.
+
+Required GitHub secrets: `WIREGUARD_CONFIG`, `SERVER_USER`, `SERVER_SSH_KEY`, `POSTGRES_PASSWORD`.
+
+## Running with Docker (recommended)
+
+1. Create the `.env` file at the repository root (git-ignored) from the template and set a real password:
+
+   ```bash
+   cp .env.example .env
+   # edit POSTGRES_PASSWORD
+   ```
+
+2. Build and start everything:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open the app. The compose file publishes the frontend on port 80; the backend is only reachable through Nginx at `/graphql`. To reach the backend directly (for example to use GraphiQL), expose its port 8080 locally.
+
+Stop the stack:
+
+```bash
 docker compose down
 ```
 
-Notes:
-- Les données Postgres vivent dans le volume nommé `pg_data` (`docker compose down` les conserve, `down -v` les supprime)
-- L’image backend installe Stockfish automatiquement
+Postgres data lives in the `pg_data` volume: `down` keeps it, `down -v` deletes it. The backend image installs Stockfish automatically.
 
-## Lancer en développement (sans Docker)
-Prérequis:
-- Rust (toolchain récente)
-- Node.js 20+ et npm
-- Stockfish installé et accessible via PATH (Linux: `sudo apt install stockfish`)
+## Local development (without Docker for the app)
 
-1) Backend
-```
-cd backend
-# Démarrer Postgres seul (depuis la racine du repo, .env créé comme ci-dessus)
+Prerequisites: a recent Rust toolchain, Node.js 20+, and Stockfish on your `PATH` (e.g. `sudo apt install stockfish`). The backend tries `stockfish`, `/usr/games/stockfish` and `/usr/local/bin/stockfish`.
+
+**Backend**
+
+```bash
+# From the repository root: start only Postgres
 docker compose up -d postgres
 
-# Une seule fois : fichier de config local (ignoré par git)
-# cp .env.example .env   (dans backend/, puis éditez DATABASE_URL: mot de passe et port)
-cargo run   # applique les migrations au démarrage
+cd backend
+cp .env.example .env   # then adjust DATABASE_URL (password, port)
+cargo run              # applies migrations, listens on http://localhost:8080
 ```
-Le backend écoute sur http://localhost:8080, exécute les migrations SQLx et expose:
-- GraphQL: `/graphql`
-- GraphiQL: `/`
 
-2) Frontend
-```
+Endpoints: GraphQL on `/graphql`, GraphiQL on `/`.
+
+**Frontend**
+
+```bash
 cd frontend
-cat > .env <<'EOF'
-VITE_GRAPHQL_API_URL=http://localhost:8080/graphql
-EOF
+echo 'VITE_GRAPHQL_API_URL=http://localhost:8080/graphql' > .env
 npm install
-npm run dev -- --open
+npm run dev -- --open   # http://localhost:5173
 ```
-Le frontend écoute par défaut sur http://localhost:5173.
 
-## API GraphQL (aperçu)
-Mutations/queries principales disponibles côté frontend:
-- `createUser`, `createGame`, `makeMove`
-- `getUserProfile`, `getLeaderboard`
+Useful scripts: `npm run check` (types), `npm run lint`, `npm test`.
 
-Vous pouvez explorer le schéma et tester des requêtes via GraphiQL sur http://localhost:8080/.
+## GraphQL API overview
 
-## Sauvegarde / restauration (Postgres)
-```
-# Sauvegarde (service postgres du compose)
+- Mutations: `createUser`, `createGame`, `makeMove`
+- Queries: `getUserProfile`, `getLeaderboard`
+
+Explore the full schema with GraphiQL.
+
+## Backup and restore (PostgreSQL)
+
+```bash
+# Backup
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' > chess_$(date +%F).sql
 
-# Restauration
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < chess_AAAA-MM-JJ.sql
+# Restore
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < chess_YYYY-MM-DD.sql
 ```
-Ne committez jamais les dumps ni le fichier `.env`.
 
-## Dépannage
-- Erreur CORS: vérifiez que `CORS_ORIGIN` (backend) correspond exactement à l’URL du frontend (5173 en dev, 8081 en Docker).
-- Stockfish introuvable: installez-le localement ou utilisez Docker. Le backend tente plusieurs chemins (`stockfish`, `/usr/games/stockfish`, `/usr/local/bin/stockfish`).
-- Base Postgres: les migrations dans `backend/migrations` s’appliquent automatiquement au démarrage. Si le port 5432 est déjà pris, définissez `POSTGRES_PORT` dans `.env`.
-- Après modification d’une requête `sqlx::query!`, régénérez les métadonnées offline (utilisées par le build Docker): `cd backend && cargo sqlx prepare` (base migrée requise) puis committez `backend/.sqlx/`.
+Never commit dumps or the `.env` file.
 
-## Structure
-- `backend/`: serveur Axum + GraphQL, services (chess/stockfish), migrations SQLx
-- `frontend/`: SvelteKit + Vite, client GraphQL, composants UI
-- `docker-compose.yml`: orchestration backend + frontend (Nginx)
+## Troubleshooting
 
----
-Ce projet est accessible en ligne sur https://chess.rdevs.fr/
+- **CORS errors:** `CORS_ORIGIN` (backend) must exactly match the frontend URL (`http://localhost:5173` in dev, your public URL in production).
+- **Stockfish not found:** install it locally or use Docker.
+- **Port 5432 already in use:** set `POSTGRES_PORT` in `.env`.
+- **After editing a `sqlx::query!` query:** regenerate the offline metadata used by the Docker build with `cd backend && cargo sqlx prepare` (a migrated database is required), then commit `backend/.sqlx/`.
+
+## Repository layout
+
+```
+backend/              Rust server: Axum + GraphQL, services (chess, Stockfish), SQLx migrations
+frontend/             SvelteKit app, GraphQL client, UI components, Nginx config
+docker-compose.yml    Production stack: postgres, backend, frontend
+.github/workflows/    CI/CD pipeline deploying to the Proxmox VM
+```

@@ -1,86 +1,105 @@
 @import 'tailwindcss';
 
-/* Theme variables inspired by the provided design */
-:root {
-	--background: oklch(0.98 0 0);
-	--foreground: oklch(0.08 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.08 0 0);
-	--primary: oklch(0.08 0 0);
-	--primary-foreground: oklch(0.98 0 0);
-	--secondary: oklch(0.92 0 0);
-	--secondary-foreground: oklch(0.08 0 0);
-	--muted: oklch(0.95 0 0);
-	--muted-foreground: oklch(0.45 0 0);
-	--accent: oklch(0.88 0 0);
-	--accent-foreground: oklch(0.08 0 0);
-	--border: oklch(0.85 0 0);
-	--input: oklch(0.98 0 0);
-	--ring: oklch(0.08 0 0);
+/* Design tokens (thème sombre unique) — voir maquettes ChessClub */
+@theme {
+	--color-bg: #0f1210;
+	--color-bg-raised: #141916;
+	--color-surface: #181d1a;
+	--color-surface-2: #1e2420;
+	--color-surface-3: #222924;
+	--color-surface-4: #2e3530;
+	--color-line: #2a312c;
+	--color-line-strong: #3a433d;
+	--color-ink: #edebe4;
+	--color-ink-2: #d2d7d3;
+	--color-ink-muted: #b7beb8;
+	--color-ink-subtle: #9aa39c;
+	--color-ink-faint: #7e877f;
+	--color-accent: #f2b544;
+	--color-success-bg: #1f3a2a;
+	--color-success: #8fe0ae;
+	--color-danger-bg: #3e2321;
+	--color-danger: #f4a79a;
+	--color-danger-line: #6b3a34;
+	--color-online: #6fd08c;
+
+	--font-display: 'Bricolage Grotesque', sans-serif;
+	--font-sans: 'IBM Plex Sans', sans-serif;
+	--font-mono: 'JetBrains Mono', monospace;
 }
 
-.dark {
-	--background: oklch(0.08 0 0);
-	--foreground: oklch(0.98 0 0);
-	--card: oklch(0.12 0 0);
-	--card-foreground: oklch(0.98 0 0);
-	--primary: oklch(0.98 0 0);
-	--primary-foreground: oklch(0.08 0 0);
-	--secondary: oklch(0.18 0 0);
-	--secondary-foreground: oklch(0.98 0 0);
-	--muted: oklch(0.15 0 0);
-	--muted-foreground: oklch(0.65 0 0);
-	--accent: oklch(0.22 0 0);
-	--accent-foreground: oklch(0.98 0 0);
-	--border: oklch(0.25 0 0);
-	--input: oklch(0.12 0 0);
-	--ring: oklch(0.98 0 0);
-}
-
-/* Map semantic utility classes to CSS variables */
-.bg-background {
-	background-color: var(--background);
-}
-.text-foreground {
-	color: var(--foreground);
-}
-.bg-card {
-	background-color: var(--card);
-}
-.bg-card-80 {
-	background-color: color-mix(in oklab, var(--card) 80%, transparent);
-}
-.text-card-foreground {
-	color: var(--card-foreground);
-}
-.bg-input {
-	background-color: var(--input);
-}
-.border-border {
-	border-color: var(--border);
-}
-.border-border-50 {
-	border-color: color-mix(in oklab, var(--border) 50%, transparent);
-}
-.border-border-30 {
-	border-color: color-mix(in oklab, var(--border) 30%, transparent);
-}
-.text-muted-foreground {
-	color: var(--muted-foreground);
-}
-.bg-primary {
-	background-color: var(--primary);
-}
-.text-primary {
-	color: var(--primary);
-}
-
-/* Base */
 html,
 body {
-	height: 100%;
+	min-height: 100%;
 }
+
 body {
-	background-color: var(--background);
-	color: var(--foreground);
+	margin: 0;
+	background-color: var(--color-bg);
+	color: var(--color-ink);
+	font-family: var(--font-sans);
+	font-size: 15px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-display);
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+button {
+	font: inherit;
+	cursor: pointer;
+}
+
+button:disabled {
+	cursor: not-allowed;
+}
+
+:focus-visible {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 2px;
+}
+
+/* Composants partagés */
+@layer components {
+	.card {
+		background: var(--color-surface);
+		border: 1px solid var(--color-line);
+	}
+	.btn-primary {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		background: var(--color-accent);
+		color: var(--color-bg);
+		font-weight: 600;
+		border: 0;
+	}
+	.btn-primary:hover:not(:disabled) {
+		filter: brightness(1.06);
+	}
+	.btn-primary:disabled {
+		opacity: 0.5;
+	}
+	.btn-secondary {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		border: 1px solid var(--color-line-strong);
+		background: transparent;
+		color: var(--color-ink);
+		font-weight: 500;
+	}
+	.btn-secondary:hover {
+		background: var(--color-surface-2);
+	}
 }

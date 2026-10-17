@@ -3,6 +3,10 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	server: {
+		// En dev, /graphql est proxifié vers le backend (comme nginx en prod)
+		proxy: { '/graphql': 'http://localhost:8080' }
+	},
 	test: {
 		projects: [
 			{

@@ -1,591 +1,170 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { gameStore, gameActions } from '$lib/stores/gameStore';
 	import { ChessService } from '$lib/services/chessService';
-	import ChessGround from '$lib/components/ChessBoard/ChessGround.svelte';
-	import PromotionDialog from '$lib/components/ChessBoard/PromotionDialog.svelte';
-	import { getPossibleMoves } from '$lib/services/chessMoves';
-	import type { ChessSquare, ChessPiece } from '$lib/types/chess';
-	import { goto } from '$app/navigation';
-	const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+	import { saveSession } from '$lib/session';
+	import { restoreSession } from '$lib/restore';
+	import Logo from '$lib/components/ui/Logo.svelte';
+	import Icon from '$lib/components/ui/Icon.svelte';
+
+	const START_BOARD = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+	const GLYPHS: Record<string, string> = {
+		k: '♚',
+		q: '♛',
+		r: '♜',
+		b: '♝',
+		n: '♞',
+		p: '♟'
+	};
+	const squares = START_BOARD.split('/').flatMap((row, r) => {
+		const cells = [...row].flatMap((ch) => (/\d/.test(ch) ? Array(Number(ch)).fill('') : [ch]));
+		return cells.map((ch, c) => ({
+			light: (r + c) % 2 === 0,
+			glyph: ch ? GLYPHS[ch.toLowerCase()] : '',
+			white: !!ch && ch === ch.toUpperCase()
+		}));
+	});
+
+	const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+	const features = [
+		{ glyph: '♞', text: "10 niveaux d'IA, de Débutant à Expert" },
+		{ glyph: '♜', text: 'Statistiques, classement et succès' },
+		{ glyph: '♝', text: 'Tutoriels et analyse de tes parties' }
+	];
 
 	let username = '';
-	let difficulty = 5;
-	let gameStarted = false;
-	let showStats = false;
-	let showLeaderboard = false;
-	let leaderboard = [];
+	let touched = false;
 
-	let chessgroundRef: any = null;
-	let lastSyncedLastMove: { from: string; to: string } | null = null;
-	// Local cache for last selection dests to validate moves synchronously
-	let lastSelectedFrom: string | null = null;
-	let lastSelectedDests: string[] = [];
+	$: trimmed = username.trim();
+	$: valid = USERNAME_RE.test(trimmed);
 
-	let pendingPromotion: { from: string; to: string } | null = null;
-
-	/**
-	 * Helper: detect a pawn promotion client-side (simple check)
-	 * @param from
-	 * @param to
-	 */
-	function isPawnPromotion(from: string, to: string): boolean {
-		if (!from || !to) return false;
-		const fromRank = parseInt(from[1]);
-		const toRank = parseInt(to[1]);
-		return (fromRank === 7 && toRank === 8) || (fromRank === 2 && toRank === 1);
-	}
-
-	/**
-	 * Return which side is to move from FEN
-	 * @param fen
-	 */
-	function turnFromFen(fen: string): 'white' | 'black' {
-		if (!fen) return 'white';
-		const parts = fen.split(' ');
-		return parts[1] === 'w' ? 'white' : 'black';
-	}
-
-	/**
-	 * Find a square by its ID (e.g., "e4") in a 2D board array
-	 * @param board
-	 * @param id
-	 */
-	function findSquareById(board: ChessSquare[][], id: string): ChessSquare | null {
-		for (const row of board) {
-			for (const sq of row) {
-				if (`${sq.file}${sq.rank}` === id) return sq;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Get possible moves for a square given current FEN
-	 * @param squareId
-	 */
-	async function getPossibleMovesForSquare(squareId: string): Promise<string[]> {
-		try {
-			const fen = $gameStore.currentGame?.fen ?? START_FEN;
-			const board = ChessService.parseFEN(fen);
-			const square = findSquareById(board, squareId);
-			if (!square) return [];
-			const toMove = turnFromFen(fen);
-			if (!square.piece || square.piece.color !== toMove) return [];
-			const moves = getPossibleMoves(board, square, fen);
-			return moves || [];
-		} catch (e) {
-			console.error('Failed to compute possible moves for', squareId, e);
-			return [];
-		}
-	}
-
-	/**
-	 * Handler for select events from chessground
-	 * @param e
-	 */
-	async function onSelectFromBoard(e) {
-		const from = e.detail.square;
-		console.log('[BOARD] select', from);
-		gameActions.selectSquare(from);
-		const fen = $gameStore.currentGame?.fen ?? START_FEN;
-		const toMove = turnFromFen(fen);
-		const board = ChessService.parseFEN(fen);
-		const sq = findSquareById(board, from);
-		if (!sq || !sq.piece) {
-			console.log('[PAGE] no square or piece at', from);
-			chessgroundRef?.clearDests();
-			gameActions.setPossibleMoves([]);
-			return;
-		}
-		if (sq.piece.color !== toMove) {
-			console.log(
-				'[PAGE] not side to move for',
-				from,
-				'pieceColor',
-				sq.piece.color,
-				'toMove',
-				toMove
-			);
-			chessgroundRef?.clearDests();
-			gameActions.setPossibleMoves([]);
-			return;
-		}
-		const dests = await getPossibleMovesForSquare(from);
-		console.log('[BOARD] possible dests for', from, dests);
-		gameActions.setPossibleMoves(dests);
-		lastSelectedFrom = from;
-		lastSelectedDests = dests;
-		chessgroundRef?.setDests({ [from]: dests });
-	}
-
-	/**
-	 * Handler for move events from chessground
-	 * @param e
-	 */
-	function onMoveFromBoard(e) {
-		const { from, to } = e.detail;
-		console.log('[BOARD] move event', from, '→', to);
-		if (lastSelectedFrom !== from || !lastSelectedDests.includes(to)) {
-			console.warn(
-				'[BOARD] synchronous guard blocked move',
-				from,
-				'→',
-				to,
-				'cachedFrom:',
-				lastSelectedFrom,
-				'dests:',
-				lastSelectedDests
-			);
-			chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
-			// clear cache
-			lastSelectedFrom = null;
-			lastSelectedDests = [];
-			return;
-		}
-
-		// Defensive: ensure this move was allowed by our move generator (async check fallback)
-		(async () => {
-			const fen = $gameStore.currentGame?.fen ?? START_FEN;
-			const toMove = turnFromFen(fen);
-			// Only allow moves if it's player's turn (white)
-			if (toMove !== 'white') {
-				console.warn('[BOARD] move blocked (not player turn)', toMove);
-				chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
-				lastSelectedFrom = null;
-				lastSelectedDests = [];
-				return;
-			}
-			const allowed = await getPossibleMovesForSquare(from);
-			if (!allowed.includes(to)) {
-				console.warn(
-					'[BOARD] move blocked (not in allowed moves)',
-					from,
-					'→',
-					to,
-					'allowed:',
-					allowed
-				);
-				// reset board to server FEN to cancel illegal movement
-				chessgroundRef?.resetToFen($gameStore.currentGame?.fen ?? START_FEN);
-				lastSelectedFrom = null;
-				lastSelectedDests = [];
-				return;
-			}
-			const boardForPromotion = ChessService.parseFEN(fen);
-			const fromSqForPromotion = findSquareById(boardForPromotion, from);
-			if (fromSqForPromotion?.piece?.type === 'pawn' && isPawnPromotion(from, to)) {
-				pendingPromotion = { from, to };
-				chessgroundRef?.clearDests();
-				return;
-			}
-			await makeMove(from, to);
-		})();
-	}
-
-	/**
-	 * Promotion dialog handler
-	 * @param e
-	 */
-	async function onPromote(e) {
-		const piece = e.detail.piece || e.detail; // depending on dialog payload
-		if (!pendingPromotion) return;
-		await makeMove(pendingPromotion.from, pendingPromotion.to, piece);
-		pendingPromotion = null;
-	}
-
-	/**
-        </div>
-</main>s a new user account and loads their profile
-     */
-	async function createUser() {
-		if (!username.trim()) {
-			gameActions.setError('Please enter a username');
-			return;
-		}
-
-		gameActions.setLoading(true);
-		gameActions.setError(null);
-
-		try {
-			const user = await ChessService.createUser(username.trim());
-			gameActions.setUser(user);
-			await loadUserProfile();
-			await loadLeaderboard();
-			console.log('👤 User created:', user);
-			await goto('/dashboard');
-		} catch (error) {
-			gameActions.setError(`Failed to create user: ${error.message}`);
-			console.error('❌ User creation error:', error);
-		} finally {
-			gameActions.setLoading(false);
-		}
-	}
-
-	/**
-	 * Loads complete user profile with stats and records
-	 */
-	async function loadUserProfile() {
-		if (!$gameStore.user) return;
-
-		try {
-			const profile = await ChessService.getUserProfile($gameStore.user.id);
-			gameActions.setUserProfile(profile);
-			console.log('📊 Profile loaded:', profile);
-		} catch (error) {
-			console.error('❌ Profile loading error:', error);
-		}
-	}
-
-	/**
-	 * Loads leaderboard data
-	 */
-	async function loadLeaderboard() {
-		try {
-			leaderboard = await ChessService.getLeaderboard(10);
-			console.log('🏆 Leaderboard loaded:', leaderboard);
-		} catch (error) {
-			console.error('❌ Leaderboard loading error:', error);
-		}
-	}
-
-	/**
-	 * Starts a new chess game against Stockfish
-	 */
-	async function startNewGame() {
-		if (!$gameStore.user) return;
-
-		gameActions.setLoading(true);
-		gameActions.setError(null);
-
-		try {
-			const game = await ChessService.createGame($gameStore.user.id, difficulty);
-			gameActions.setCurrentGame(game);
-			gameActions.startTimer();
-			gameStarted = true;
-			console.log('🎮 Game started:', game);
-		} catch (error) {
-			gameActions.setError(`Failed to start game: ${error.message}`);
-			console.error('❌ Game creation error:', error);
-		} finally {
-			gameActions.setLoading(false);
-		}
-	}
-
-	/**
-	 * Makes a chess move with optional promotion support
-	 * @param from - Source square (e.g., "e2")
-	 * @param to - Target square (e.g., "e4")
-	 * @param promotion - Optional promotion piece ("queen", "rook", "bishop", "knight")
-	 */
-	async function makeMove(from, to, promotion = null) {
-		if (!$gameStore.currentGame) return;
-
-		// Format move with promotion
-		let playerMove = `${from}${to}`;
-		if (promotion) {
-			const promotionLetters = {
-				queen: 'q',
-				rook: 'r',
-				bishop: 'b',
-				knight: 'n'
-			};
-			playerMove += promotionLetters[promotion];
-			console.log('🎯 Pawn promotion:', from, '→', to, 'promoted to', promotion);
-		}
-
-		gameActions.setLoading(true);
-		gameActions.setError(null);
-
-		try {
-			const result = await ChessService.makeMove($gameStore.currentGame.id, playerMove);
-			console.log('[MAKE MOVE] server result:', result);
-			gameActions.updateGameAfterMove(result);
-
-			console.log('♟️ Move:', playerMove, '→ Stockfish:', result.stockfishMove);
-
-			if (result.gameOver) {
-				const outcome =
-					result.winner === 'white'
-						? 'You won! 🏆'
-						: result.winner === 'black'
-							? 'You lost! 😔'
-							: 'Draw! 🤝';
-
-				const time = gameActions.formatTime(result.totalTimeSeconds || $gameStore.elapsedTime);
-				alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${result.game.movesCount}`);
-
-				// Reload stats after game ends
-				await loadUserProfile();
-				await loadLeaderboard();
-			}
-		} catch (error) {
-			gameActions.setError(`Invalid move: ${error.message}`);
-			console.error('❌ Move error:', error);
-		} finally {
-			gameActions.setLoading(false);
-		}
-	}
-
-	/**
-	 * Resets game state and returns to menu
-	 */
-	function resetGame() {
-		gameActions.clearGame();
-		gameStarted = false;
-	}
-
-	/**
-	 * Calculates win rate percentage
-	 */
-	function getWinRate(gamesWon, totalGames) {
-		if (totalGames === 0) return 0;
-		return Math.round((gamesWon / totalGames) * 100);
-	}
-
-	/**
-	 * Permet d'abandonner la partie (résignation)
-	 */
-	async function resignGame() {
-		if (!$gameStore.currentGame || $gameStore.currentGame.status === 'finished') return;
-		const updatedGame = {
-			...$gameStore.currentGame,
-			status: 'finished',
-			result: 'black', // Stockfish gagne
-			end_time: new Date().toISOString()
-		};
-		gameActions.setCurrentGame(updatedGame);
-		gameActions.stopTimer();
-		gameStarted = false;
-		alert('You resigned! Stockfish wins.');
-		await loadUserProfile();
-		await loadLeaderboard();
-	}
-
-	// Affichage automatique de la fin de partie (mat, pat, abandon)
-	let gameOverAlerted = false;
-	$: if (
-		$gameStore.currentGame &&
-		$gameStore.currentGame.status === 'finished' &&
-		!gameOverAlerted
-	) {
-		gameOverAlerted = true;
-		let outcome = 'Game over!';
-		if ($gameStore.currentGame.result === 'white') outcome = 'You won! 🏆';
-		else if ($gameStore.currentGame.result === 'black') outcome = 'You lost! 😔';
-		else if ($gameStore.currentGame.result === 'draw') outcome = 'Draw! 🤝';
-		const time = gameActions.formatTime($gameStore.elapsedTime);
-		alert(`${outcome}\n⏱️ Time: ${time}\n♟️ Moves: ${$gameStore.currentGame.movesCount}`);
-		// Reload stats after game ends
-		loadUserProfile();
-		loadLeaderboard();
-	}
-	$: if ($gameStore.currentGame && $gameStore.currentGame.status === 'active') {
-		gameOverAlerted = false;
-	}
-
-	// Debug: log current game state whenever it changes (helps verify we received the FEN)
-	$: if ($gameStore.currentGame) {
-		console.log('[DEBUG] $gameStore.currentGame changed:', $gameStore.currentGame);
-		// also log lastMove and possibleMoves
-		console.log('[DEBUG] lastMove', $gameStore.lastMove, 'possibleMoves', $gameStore.possibleMoves);
-	}
-
-	// Sync lastMove from the store to the chessground instance so highlight shows the
-	// most recent move regardless of color. The backend/gameStore provides the lastMove
-	// representing the previous played move (should be the last move made, not two moves ago).
-	$: if (chessgroundRef && $gameStore.lastMove) {
-		const lm = $gameStore.lastMove;
-		// Only sync if changed
-		if (
-			!lastSyncedLastMove ||
-			lastSyncedLastMove.from !== lm.from ||
-			lastSyncedLastMove.to !== lm.to
-		) {
-			console.log('[BOARD] syncing lastMove to chessground', lm);
-			try {
-				chessgroundRef.setLastMove(lm.from, lm.to);
-				lastSyncedLastMove = { from: lm.from, to: lm.to };
-			} catch (err) {
-				console.warn('Failed to set lastMove on chessground', err);
-			}
-		}
-	}
-
-	// Cleanup timer on component destroy
-	onDestroy(() => {
-		gameActions.stopTimer();
+	onMount(async () => {
+		if (await restoreSession()) await goto('/dashboard');
 	});
+
+	async function createUser() {
+		touched = true;
+		if (!valid || $gameStore.loading) return;
+		gameActions.setLoading(true);
+		gameActions.setError(null);
+		try {
+			const user = await ChessService.createUser(trimmed);
+			gameActions.setUser(user);
+			saveSession({ id: user.id, username: user.username });
+			await goto('/dashboard');
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			gameActions.setError(`Impossible de créer le profil : ${message}`);
+		} finally {
+			gameActions.setLoading(false);
+		}
+	}
 </script>
 
-<!-- Fullscreen welcome with chess background and card -->
-<div
-	class="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden"
->
-	<!-- Background chess pattern -->
-	<div class="absolute inset-0 opacity-5 pointer-events-none">
-		<div class="grid grid-cols-8 h-full">
-			{#each Array(64) as _, i}
-				<div class={Math.floor(i / 8) % 2 === i % 2 ? 'bg-primary' : 'bg-background'}></div>
-			{/each}
+<svelte:head>
+	<title>Créer ton profil — ChessClub</title>
+</svelte:head>
+
+<div class="flex min-h-screen flex-wrap bg-bg">
+	<section
+		class="flex min-w-0 flex-[1_1_560px] flex-col justify-between gap-10 border-r border-line bg-bg-raised px-6 py-10 sm:px-14"
+	>
+		<Logo size={34} />
+		<div class="flex flex-col items-start gap-8">
+			<div
+				role="img"
+				aria-label="Échiquier en position de départ"
+				class="grid aspect-square w-full max-w-[420px] -rotate-3 grid-cols-8 grid-rows-8 overflow-hidden rounded-[14px] shadow-[0_30px_80px_rgba(0,0,0,0.45)]"
+			>
+				{#each squares as sq}
+					<div
+						class="flex items-center justify-center leading-none"
+						style="font-size:clamp(20px,3vw,40px);background:{sq.light
+							? '#E9E4D4'
+							: '#5E7464'};color:{sq.white ? '#FFFFFF' : '#14110F'};{sq.white
+							? 'text-shadow:0 0 2px #14110F,0 1px 1px #14110F'
+							: ''}"
+					>
+						{sq.glyph}
+					</div>
+				{/each}
+			</div>
+			<h2
+				class="m-0 max-w-[520px] text-5xl font-extrabold leading-none tracking-[-0.035em] sm:text-[56px]"
+			>
+				Stratégie.<br />Tactique.<br /><span class="text-accent">Maîtrise.</span>
+			</h2>
 		</div>
-	</div>
+		<p class="m-0 text-sm text-ink-subtle">
+			Affronte l'IA du niveau 1 au niveau 10 et suis ta progression partie après partie.
+		</p>
+	</section>
 
-	<div class="relative z-10 w-full max-w-md">
-		<!-- Chess pieces decoration -->
-		<div class="absolute -top-20 left-1/2 -translate-x-1/2 text-6xl opacity-20 select-none">♔</div>
-		<div class="absolute -top-16 -left-8 text-4xl opacity-15 select-none">♛</div>
-		<div class="absolute -top-16 -right-8 text-4xl opacity-15 select-none">♜</div>
-
-		{#if !$gameStore.currentGame}
-			<!-- Card -->
-			<div class="p-8 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
-				<div class="text-center space-y-6">
-					<!-- Logo/Title -->
-					<div class="space-y-2">
-						<div class="text-4xl font-bold text-primary tracking-tight">ChessClub</div>
-						<div class="flex justify-center space-x-2 text-2xl opacity-60">
-							<span>♔</span>
-							<span>♕</span>
-							<span>♖</span>
-							<span>♗</span>
-							<span>♘</span>
-							<span>♙</span>
-						</div>
-					</div>
-
-					<!-- Main heading -->
-					<div class="space-y-3">
-						<h1 class="text-2xl font-semibold text-foreground">Create your profile</h1>
-						<p class="text-muted-foreground leading-relaxed">
-							Enter a username to start playing and tracking your progress!
-						</p>
-					</div>
-
-					<!-- Statistics Panel -->
-
-					<!-- Username input -->
-					<div class="space-y-3">
-						<input
-							type="text"
-							bind:value={username}
-							maxlength="20"
-							placeholder="Username"
-							class="w-full h-12 px-4 bg-input border border-border-50 rounded-md focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
-							on:keydown={(e) => e.key === 'Enter' && createUser()}
-						/>
-					</div>
-
-					{#if username}
-						<div class="text-sm text-muted-foreground">
-							Welcome, <span class="font-medium text-foreground">{username}</span>!
-						</div>
-					{/if}
-
-					<button
-						on:click={createUser}
-						class="w-full h-12 rounded-full bg-primary text-white font-semibold disabled:opacity-60"
-						disabled={$gameStore.loading || !username.trim()}
-					>
-						🚀 Create my profile
-					</button>
-				</div>
-
-				<!-- Decorative elements -->
-				<div class="pt-4 border-t border-border-30">
-					<div class="flex justify-center space-x-4 text-xs text-muted-foreground">
-						<span>Strategy</span>
-						<span>•</span>
-						<span>Tactics</span>
-						<span>•</span>
-						<span>Mastery</span>
-					</div>
-				</div>
-			</div>
-		{:else}
-			<!-- Game in Progress -->
-			<div class="space-y-6">
-				<!-- Game Header -->
-				<div class="p-6 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
-					<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-						<div>
-							<h3 class="text-xl font-semibold text-foreground">
-								♟️ vs Stockfish (Level {$gameStore.currentGame?.difficulty})
-							</h3>
-							<div class="text-sm text-muted-foreground">
-								Status: <span class="font-medium text-foreground"
-									>{$gameStore.currentGame?.status}</span
-								>
-								• Moves:
-								<span class="font-medium text-foreground">{$gameStore.currentGame?.movesCount}</span
-								>
-							</div>
-						</div>
-						<div class="text-center">
-							<div
-								class="text-2xl font-bold text-primary bg-card rounded-lg px-4 py-2 inline-block"
-							>
-								⏱️ {gameActions.formatTime($gameStore.elapsedTime)}
-							</div>
-							<div class="text-xs text-muted-foreground mt-1">Game Time</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- Chess Board -->
-				<div class="p-4 rounded-xl bg-card-80 backdrop-blur-sm border border-border-50 shadow-2xl">
-					<div class="max-w-3xl mx-auto">
-						<ChessGround
-							bind:this={chessgroundRef}
-							fen={$gameStore.currentGame?.fen ?? START_FEN}
-							orientation="white"
-							viewOnly={$gameStore.currentGame?.status !== 'active'}
-							on:move={onMoveFromBoard}
-							on:select={onSelectFromBoard}
-						/>
-
-						<!-- Promotion Dialog -->
-						<PromotionDialog
-							visible={!!pendingPromotion}
-							from={pendingPromotion?.from}
-							to={pendingPromotion?.to}
-							on:promote={onPromote}
-							on:cancel={() => {
-								pendingPromotion = null;
-								chessgroundRef?.clearDests();
-							}}
-						/>
-					</div>
-				</div>
-
-				<!-- Game Controls -->
-				<div class="flex gap-3 justify-center">
-					<button
-						class="h-11 px-5 rounded-full bg-card-80 text-foreground border border-border-50"
-						on:click={resetGame}>🏠 Back to Menu</button
-					>
-					<button
-						class="h-11 px-5 rounded-full bg-primary text-white disabled:opacity-60"
-						on:click={resignGame}
-						disabled={$gameStore.currentGame?.status !== 'active'}>🚩 Resign</button
-					>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Bottom decoration -->
-		<div
-			class="absolute -bottom-12 left-1/2 -translate-x-1/2 flex space-x-4 text-2xl opacity-20 select-none"
+	<section class="flex min-w-0 flex-[1_1_440px] items-center justify-center px-8 py-10">
+		<form
+			class="flex w-full max-w-[400px] flex-col gap-[22px]"
+			on:submit|preventDefault={createUser}
+			novalidate
 		>
-			<span>♞</span>
-			<span>♝</span>
-			<span>♟</span>
-		</div>
-	</div>
-</div>
+			<div class="flex flex-col gap-2">
+				<h1 class="m-0 text-[40px] font-bold tracking-[-0.03em]">Crée ton profil</h1>
+				<p class="m-0 text-ink-muted">
+					Choisis un pseudo pour commencer à jouer et suivre tes progrès. Pas de mot de passe, pas
+					d'e-mail.
+				</p>
+			</div>
 
-<style>
-	.opacity-15 {
-		opacity: 0.15;
-	}
-</style>
+			<div class="flex flex-col gap-2">
+				<label for="pseudo" class="text-sm font-medium text-ink-2">Pseudo</label>
+				<input
+					id="pseudo"
+					type="text"
+					bind:value={username}
+					maxlength="20"
+					placeholder="ex. magnus_du_93"
+					autocomplete="username"
+					aria-invalid={touched && !valid}
+					aria-describedby="pseudo-help"
+					class="box-border h-[52px] rounded-xl border bg-surface px-4 text-[17px] text-ink outline-none placeholder:text-ink-subtle focus:border-accent {touched &&
+					!valid
+						? 'border-danger'
+						: 'border-line-strong'}"
+				/>
+				<span
+					id="pseudo-help"
+					class="text-[13px] {touched && !valid ? 'text-danger' : 'text-ink-subtle'}"
+				>
+					3 à 20 caractères, lettres, chiffres et _
+				</span>
+			</div>
+
+			{#if $gameStore.error}
+				<p role="alert" class="m-0 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
+					{$gameStore.error}
+				</p>
+			{/if}
+
+			<button
+				type="submit"
+				class="btn-primary h-[54px] rounded-xl text-[17px]"
+				disabled={$gameStore.loading || !valid}
+			>
+				{$gameStore.loading ? 'Création…' : 'Créer mon profil'}
+				<Icon name="arrow-right" size={18} />
+			</button>
+
+			<ul class="m-0 flex list-none flex-col gap-3 border-t border-line p-0 pt-[18px]">
+				{#each features as f}
+					<li class="flex items-center gap-3 text-sm text-ink-muted">
+						<span
+							class="flex h-8 w-8 items-center justify-center rounded-[9px] bg-surface text-lg text-accent"
+							aria-hidden="true">{f.glyph}</span
+						>
+						{f.text}
+					</li>
+				{/each}
+			</ul>
+		</form>
+	</section>
+</div>
