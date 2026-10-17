@@ -20,8 +20,8 @@ RUN cargo +nightly build --release || true
 # Copier tout le code
 COPY . .
 
-# Compiler le binaire final
-RUN cargo +nightly build --release
+# Compiler le binaire final (touch: force cargo a recompiler le vrai main.rs, sinon il garde le binaire factice du cache)
+RUN touch src/main.rs && cargo +nightly build --release
 
 # ---- Runtime ----
 FROM debian:bookworm-slim
