@@ -56,11 +56,8 @@ cd backend
 # Démarrer Postgres seul (depuis la racine du repo, .env créé comme ci-dessus)
 docker compose up -d postgres
 
-# DATABASE_URL est obligatoire (adaptez le port si POSTGRES_PORT != 5432)
-export DATABASE_URL=postgres://chess:<mot-de-passe>@localhost:5432/chess
-export CORS_ORIGIN=http://localhost:5173
-# PORT=8080 par défaut
-
+# Une seule fois : fichier de config local (ignoré par git)
+# cp .env.example .env   (dans backend/, puis éditez DATABASE_URL: mot de passe et port)
 cargo run   # applique les migrations au démarrage
 ```
 Le backend écoute sur http://localhost:8080, exécute les migrations SQLx et expose:
