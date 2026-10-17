@@ -1,9 +1,3 @@
-# Base de données locale
-backend/chess.db
-backend/chess.db-shm
-backend/chess.db-wal
-backend/data/
-*.db
 
 # Rust
 backend/target/
